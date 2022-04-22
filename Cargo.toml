@@ -15,8 +15,6 @@ assert_cmd = "0.11.0"
 predicates = "1.0.0"
 
 [lib]
-test = false
-doctest = false
 
 [[bin]]
 name = "kvs"

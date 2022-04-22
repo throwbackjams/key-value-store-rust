@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::process;
-#[clap(author, version, about)]
 #[derive(Debug, Parser)]
+#[clap(author, version, about)]
 enum Command {
     ///Set the value of a string key to a string
     Set {
