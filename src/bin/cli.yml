@@ -1,0 +1,36 @@
+name: ksv-cli
+version: "0.0.1"
+author: James Li <yli17@alumni.nd.edu>
+about: CLI for ksv in rust
+subcommands:
+    - set:
+        about: Set the value of a string key to a string
+        version: "0.0.1"
+        author: James Li <yli17@alumni.nd.edu>
+        args:
+            - KEY:
+                help: key of the key value pair
+                required: true
+                index: 1
+            - VALUE:
+                help: value of the key value pair
+                required: true
+                index: 2
+    - get:
+        about: Get the string value of a given string key
+        version: "0.0.1"
+        author: James Li <yli17@alumni.nd.edu>
+        args:
+            - KEY:
+                help: The key for the desired value
+                required: true
+                index: 1
+    - rm:
+        about: Removes a given key
+        version: "0.0.1"
+        author: James Li <yli17@alumni.nd.edu>
+        args:
+            - KEY:
+                help: They key for the desired key value pair to remove
+                required: true
+                index: 1                
