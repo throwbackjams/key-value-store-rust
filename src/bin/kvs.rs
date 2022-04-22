@@ -20,35 +20,31 @@ enum Command {
         #[clap(required = true)]
         key: String,
     },
-
 }
 
 fn main() {
-
     let command = Command::parse();
 
     println!("{:?}", command);
 
     match command {
-        Command::Set{ key, value } => {
+        Command::Set { key, value } => {
             eprintln!("unimplemented");
 
             println!("Key value pair to be set {:?} : {:?}", key, value);
             process::exit(1);
-        },
-        Command::Get{ key } => {
+        }
+        Command::Get { key } => {
             eprintln!("unimplemented");
 
             println!("Key to be searched {:?}", key);
             process::exit(1);
-        },
+        }
         Command::Rm { key } => {
             eprintln!("unimplemented");
 
             println!("Key to be removed {:?}", key);
             process::exit(1);
-        },
-
+        }
     }
-
 }

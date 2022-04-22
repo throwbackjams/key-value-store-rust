@@ -3,17 +3,14 @@
 use std::collections::HashMap;
 
 ///Primary struct is a KvStore containing a single HashMap
-pub struct KvStore{
+pub struct KvStore {
     kv: HashMap<String, String>,
 }
 
-impl KvStore{
-
+impl KvStore {
     ///Create a hashmap
     pub fn new() -> KvStore {
-        KvStore{
-            kv: HashMap::new(),
-        }
+        KvStore { kv: HashMap::new() }
     }
 
     ///Use the default hashmap method
@@ -23,7 +20,6 @@ impl KvStore{
 
     ///Use the default hashmap method
     pub fn get(&self, key: String) -> Option<String> {
-        
         self.kv.get(&key).cloned()
     }
 
@@ -31,7 +27,6 @@ impl KvStore{
     pub fn remove(&mut self, key: String) {
         self.kv.remove(&key);
     }
-
 }
 
 #[cfg(test)]
@@ -46,8 +41,6 @@ mod tests {
         let result = store.get(key);
 
         assert_eq!(result, None);
-
-
     }
 
     #[test]
@@ -58,12 +51,10 @@ mod tests {
         let mut store = KvStore::new();
 
         store.set(key, value);
-        
+
         assert_eq!(store.get("apple".to_owned()), Some("red".to_owned()));
-        
+
         store.set("apple".to_owned(), "brown".to_owned());
         assert_eq!(store.get("apple".to_owned()), Some("brown".to_owned()));
-
-        
     }
 }
