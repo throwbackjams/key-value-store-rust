@@ -1,30 +1,33 @@
+#![deny(missing_docs)]
+//!An implementation of a key value store in Rust
 use std::collections::HashMap;
 
+///Primary struct is a KvStore containing a single HashMap
 pub struct KvStore{
     kv: HashMap<String, String>,
 }
 
 impl KvStore{
 
+    ///Create a hashmap
     pub fn new() -> KvStore {
         KvStore{
             kv: HashMap::new(),
         }
     }
 
+    ///Use the default hashmap method
     pub fn set(&mut self, key: String, value: String) {
         self.kv.insert(key, value);
     }
 
+    ///Use the default hashmap method
     pub fn get(&self, key: String) -> Option<String> {
-        match self.kv.get(&key) {
-            Some(key) => {
-                Some(key.clone())
-            },
-            None => None,
-        }
+        
+        self.kv.get(&key).cloned()
     }
 
+    ///Use the default hashmap method
     pub fn remove(&mut self, key: String) {
         self.kv.remove(&key);
     }
@@ -59,7 +62,7 @@ mod tests {
         assert_eq!(store.get("apple".to_owned()), Some("red".to_owned()));
         
         store.set("apple".to_owned(), "brown".to_owned());
-        println!("{:?}", store.get("apple".to_owned()));
+        assert_eq!(store.get("apple".to_owned()), Some("brown".to_owned()));
 
         
     }
