@@ -1,45 +1,54 @@
-#[macro_use]
-extern crate clap;
-use clap::{App, Arg};
+use clap::Parser;
 use std::process;
+#[clap(author, version, about)]
+#[derive(Debug, Parser)]
+enum Command {
+    ///Set the value of a string key to a string
+    Set {
+        #[clap(required = true)]
+        key: String,
+        #[clap(required = true)]
+        value: String,
+    },
+    ///Get the string value of a given string key
+    Get {
+        #[clap(required = true)]
+        key: String,
+    },
+    ///Removes a given key
+    Rm {
+        #[clap(required = true)]
+        key: String,
+    },
+
+}
 
 fn main() {
 
-    let yaml = load_yaml!("cli.yml");
-    let matches = App::from_yaml(yaml).get_matches();
+    let command = Command::parse();
 
-    match matches.subcommand() {
-        None => {
-            eprintln!("Must contain valid subcommand or arguments");
-            process::exit(1);
-        },
-        Some(("set", argmatches)) => {
+    println!("{:?}", command);
+
+    match command {
+        Command::Set{ key, value } => {
             eprintln!("unimplemented");
-
-            let key = argmatches.value_of("key").unwrap();
-            let value = argmatches.value_of("value").unwrap();
 
             println!("Key value pair to be set {:?} : {:?}", key, value);
             process::exit(1);
         },
-        Some(("get", argmatches)) => {
+        Command::Get{ key } => {
             eprintln!("unimplemented");
-
-            let key = argmatches.value_of("key").unwrap();
 
             println!("Key to be searched {:?}", key);
             process::exit(1);
         },
-        Some(("rm", argmatches)) => {
+        Command::Rm { key } => {
             eprintln!("unimplemented");
-
-            let key = argmatches.value_of("key").unwrap();
 
             println!("Key to be removed {:?}", key);
             process::exit(1);
         },
-        _ => unreachable!(),
-    }
 
+    }
 
 }
