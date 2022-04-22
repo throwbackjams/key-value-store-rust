@@ -8,11 +8,11 @@ subcommands:
         version: "0.0.1"
         author: James Li <yli17@alumni.nd.edu>
         args:
-            - KEY:
+            - key:
                 help: key of the key value pair
                 required: true
                 index: 1
-            - VALUE:
+            - value:
                 help: value of the key value pair
                 required: true
                 index: 2
@@ -21,7 +21,7 @@ subcommands:
         version: "0.0.1"
         author: James Li <yli17@alumni.nd.edu>
         args:
-            - KEY:
+            - key:
                 help: The key for the desired value
                 required: true
                 index: 1
@@ -30,7 +30,7 @@ subcommands:
         version: "0.0.1"
         author: James Li <yli17@alumni.nd.edu>
         args:
-            - KEY:
+            - key:
                 help: They key for the desired key value pair to remove
                 required: true
                 index: 1                
