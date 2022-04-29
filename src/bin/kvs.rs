@@ -1,5 +1,7 @@
 use clap::Parser;
 use std::process;
+use kvs::{KvStore, Result};
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
@@ -23,29 +25,38 @@ enum Command {
     },
 }
 
-fn main() {
+fn main() -> Result<()> {
+    let path = PathBuf::from(r"log.txt");
+    let mut in_mem_kv = KvStore::open(&path)?;
+    
+    println!("In memory KV: {:?}", in_mem_kv.kv);
+    
     let command = Command::parse();
-
-    println!("{:?}", command);
 
     match command {
         Command::Set { key, value } => {
-            eprintln!("unimplemented");
+            // println!("Key value pair to be set {:?} : {:?}", key, value);
 
-            println!("Key value pair to be set {:?} : {:?}", key, value);
-            process::exit(1);
+            in_mem_kv.set(key, value)?;
+
+            process::exit(0);
         }
         Command::Get { key } => {
-            eprintln!("unimplemented");
+            
+            let result = in_mem_kv.get(key);
 
-            println!("Key to be searched {:?}", key);
-            process::exit(1);
+            println!("get result: {:?}", result);
+
+            process::exit(0);
         }
         Command::Rm { key } => {
-            eprintln!("unimplemented");
+            
+            in_mem_kv.remove(key)?;
 
-            println!("Key to be removed {:?}", key);
-            process::exit(1);
+            process::exit(0);
+
         }
     }
+
+    // todo!("implement result type")
 }
