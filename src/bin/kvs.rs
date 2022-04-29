@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::process;
+
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
 enum Command {
