@@ -1,6 +1,6 @@
 use clap::Parser;
 use std::process;
-use kvs::{KvStore, Result};
+use kvs::{KvStore, Result, KvsError};
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
@@ -26,8 +26,10 @@ enum Command {
 }
 
 fn main() -> Result<()> {
-    let path = PathBuf::from(r"log.txt");
+    let path = PathBuf::from("tmp/.tmp");
     let mut in_mem_kv = KvStore::open(&path)?;
+
+    println!("path: {:?}", in_mem_kv.directory_path);
     
     println!("In memory KV: {:?}", in_mem_kv.kv);
     
@@ -37,21 +39,41 @@ fn main() -> Result<()> {
         Command::Set { key, value } => {
             // println!("Key value pair to be set {:?} : {:?}", key, value);
 
-            in_mem_kv.set(key, value)?;
+            let result = in_mem_kv.set(key, value);
 
-            process::exit(0);
+            match result {
+                Ok(()) => process::exit(0),
+                Err(error) => {
+                    println!("Error: {}", error);
+                    process::exit(1);
+                }
+
+            }
         }
         Command::Get { key } => {
             
-            let result = in_mem_kv.get(key);
+            let result = in_mem_kv.get(key)
+                            .map_err(|error| { 
+                                println!("{}", error);
+                                process::exit(0);
+                             })
+                             .unwrap();
 
-            println!("get result: {:?}", result);
+            
 
             process::exit(0);
         }
         Command::Rm { key } => {
             
-            in_mem_kv.remove(key)?;
+            let _result = in_mem_kv
+                            .remove(key)
+                            .map_err(|error| {
+                                if let KvsError::Store(err) = error {
+                                println!("{}", err);
+                                process::exit(1);
+                            }
+                            });
+            // println!("CLI remove command - result: {:?}", result);
 
             process::exit(0);
 
