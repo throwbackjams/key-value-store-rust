@@ -26,12 +26,12 @@ enum Command {
 }
 
 fn main() -> Result<()> {
-    let path = PathBuf::from("tmp/.tmp");
+    let path = PathBuf::from("");
     let mut in_mem_kv = KvStore::open(&path)?;
 
-    println!("path: {:?}", in_mem_kv.directory_path);
+    // println!("path: {:?}", in_mem_kv.directory_path);
     
-    println!("In memory KV: {:?}", in_mem_kv.kv);
+    // println!("In memory KV: {:?}", in_mem_kv.kv);
     
     let command = Command::parse();
 
@@ -52,14 +52,23 @@ fn main() -> Result<()> {
         }
         Command::Get { key } => {
             
-            let result = in_mem_kv.get(key)
-                            .map_err(|error| { 
-                                println!("{}", error);
-                                process::exit(0);
-                             })
-                             .unwrap();
-
+            let result = in_mem_kv.get(key);
+                            // .map_err(|error| { 
+                            //     if let KvsError::Store(err) = error {
+                            //         println!("{}", err);
+                            //         process::exit(0);
+                            //     }
+                            //  })
+                            //  .map(|result| { 
+                            //      println!("{}", result.unwrap());
+                            //  });
             
+            match result {
+                Ok(Some(value)) => println!("{}", value),
+                Ok(None) => println!("Key not found"),
+                _ => unreachable!(),
+            }
+                             
 
             process::exit(0);
         }

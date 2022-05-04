@@ -68,7 +68,7 @@ impl KvStore {
         let directory: &PathBuf = &self.directory_path;
 
         let full_path = directory.join("log.txt");
-        println!("set full path: {:?}", full_path);
+        // println!("set full path: {:?}", full_path);
 
         // let file = File::open(full_path)?;
 
@@ -80,6 +80,8 @@ impl KvStore {
                         .open(full_path)?;  //&self.directory_path.join("log.txt")
         serde_json::to_writer(file, &command)?;
 
+        // println!("Set write complete");
+
         Ok(())
     }
 
@@ -87,20 +89,20 @@ impl KvStore {
     pub fn remove(&mut self, key: String) -> Result<()>{
         let result = self.kv.remove(&key);
 
-        println!("Remove result: {:?}", result.clone());
+        // println!("Remove result: {:?}", result.clone());
         
         if let None = result {
             return Err(KvsError::Store("Key not found".to_owned()))
         }
 
-        println!("Writing remove to disk");
+        // println!("Writing remove to disk");
 
         let command = Command::Rm { key };
 
         let directory: &PathBuf = &self.directory_path;
 
         let full_path = directory.join("log.txt");
-        println!("set remove full path: {:?}", full_path);
+        // println!("set remove full path: {:?}", full_path);
 
         // let file = File::open(full_path)?;
 
@@ -111,14 +113,56 @@ impl KvStore {
                         .open(full_path)?;
 
         serde_json::to_writer(file, &command)?;
-        println!("Remove write complete");
+        // println!("Remove write complete");
 
         Ok(())
     }
 
         ///Get the string value of a string key. If the key does not exist, return None. Return an error if the value is not read successfully.
     pub fn get(&self, key: String) -> Result<Option<String>> {
-        let result = self.kv.get(&key).cloned();
+        
+        if let Some(value) =  self.kv.get(&key).cloned() {
+            return Ok(Some(value))
+        }
+
+        let directory: &PathBuf = &self.directory_path;
+
+        let full_path = directory.join("log.txt");
+
+        // println!("Opening file on disk as part of GET");
+        // println!("full path of GET: {:?}", full_path);
+
+        let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .read(true)
+        .open(full_path)?;
+
+        let deserialized_commands: Vec<Command> = serde_json::Deserializer::from_reader(file)
+                                                            .into_iter::<Command>()
+                                                            .filter_map(|it| it.ok())
+                                                            .collect::<_>();
+
+        // println!("Deserialized Commands within GET: {:?} ", deserialized_commands);
+
+        //"replay" commands into the HashMap in memory -> for each command, match against commands and execute
+
+        let mut in_mem_kv =  HashMap::new();
+
+        for command in deserialized_commands.iter() {
+            match command {
+                Command::Set { key, value } => in_mem_kv.insert(key.clone(), value.clone()),
+                Command::Rm { key } => in_mem_kv.remove(key),
+                _ => {
+                    continue
+                },
+            };
+
+        };
+
+        let result = in_mem_kv.get(&key).cloned();
+
+        // println!("Result is: {:?}", result);
 
         // if let None = result {
         //     return Err(KvsError::Store("Key not found".to_owned()))
@@ -130,7 +174,7 @@ impl KvStore {
 
     ///Open the KvStore at a given path. Return the KvStore
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
-        println!("called KvStore::open()");
+        // println!("called KvStore::open()");
         
         //argument: path: impl Into<PathBuf>
 
@@ -146,13 +190,13 @@ impl KvStore {
         // // let deserialized_kv:  = serde_json::Deserializer::from_str(&serialized_string);
 
         //open the log file
-        println!("opening file");
+        // println!("opening file");
 
         let directory: PathBuf = path.into();
         fs::create_dir_all(&directory)?;
 
         let full_path = directory.join("log.txt");
-        println!("full path: {:?}", full_path);
+        // println!("full path: {:?}", full_path);
 
         // let file = File::open(full_path)?;
 
@@ -162,7 +206,7 @@ impl KvStore {
             .read(true)
             .open(full_path)?;
         
-        println!("file opened");
+        // println!("file opened");
 
         // let mut string = String::new();
 
@@ -176,7 +220,7 @@ impl KvStore {
                                                             .filter_map(|it| it.ok())
                                                             .collect::<_>();
 
-        println!("Deserialized Commands: {:?} ", deserialized_commands);
+        // println!("Deserialized Commands: {:?} ", deserialized_commands);
 
         //"replay" commands into the HashMap in memory -> for each command, match against commands and execute
 
@@ -193,7 +237,7 @@ impl KvStore {
 
         };
 
-        println!("In memory hashmap: {:?}", in_mem_kv.kv);
+        // println!("In memory hashmap: {:?}", in_mem_kv.kv);
 
         Ok(in_mem_kv)
     }
