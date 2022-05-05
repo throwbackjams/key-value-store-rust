@@ -153,10 +153,10 @@ impl KvStore {
 
         let command_on_disc = deserialized_commands.iter().nth(*log_pointer as usize).unwrap(); //TODO: Need to handle this potential error better
         
-        println!("Deserialized Command found through log pointer: {:?}", command_on_disc);
+        // println!("Deserialized Command found through log pointer: {:?}", command_on_disc);
 
-        if let Command::Set{ key , value } = *command_on_disc {
-            return Ok(Some(value))
+        if let Command::Set{ key:_ , value } = command_on_disc {
+            return Ok(Some(value.to_owned()))
         } else {
             return Err(KvsError::Store("Unable to find key through the log pointer".to_owned()))
         }
@@ -244,8 +244,8 @@ impl KvStore {
 
         for command in deserialized_commands.iter() {
             match command {
-                Command::Set { key, value } => in_mem_kv.kv.insert(key.clone(), value.clone()),
-                Command::Rm { key } => in_mem_kv.kv.remove(key),
+                Command::Set { key, value: _ } => { in_mem_kv.kv.insert(key.clone(), in_mem_kv.log_pointer); in_mem_kv.log_pointer += 1;},
+                Command::Rm { key } => { in_mem_kv.kv. remove(key); in_mem_kv.log_pointer +=1; },
                 _ => {
                     continue
                 },
@@ -253,7 +253,17 @@ impl KvStore {
 
         };
 
-        // println!("In memory hashmap: {:?}", in_mem_kv.kv);
+        // println!("In memory pointer map: {:?}", in_mem_kv.kv);
+
+        //Compaction
+        //create new Vec<Command>
+        //track number of removals
+        //For (i, command) in deserialized_commands.enumerate()
+        //look up command.key in memory hashmap
+        //if exits and positon i is equal to hashmap pointer value, then copy to new vec<Command> and set in memory pointer value as (current value minus the removals so far)
+        //else increment removal counter by one
+        //(Note: if does not exist or exists but position i is less than the hashmap pointer value, then disregard for removal)
+        //write new Vec<Command> to disc & check that pointer values in memory reflect correct disc pointer
 
         Ok(in_mem_kv)
     }
