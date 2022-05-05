@@ -12,8 +12,9 @@ use std::process;
 
 ///Primary struct is a KvStore containing a single HashMap
 pub struct KvStore {
-    pub kv: HashMap<String, String>,
+    pub kv: HashMap<String, u64>, //Change to store log pointer
     pub directory_path: PathBuf,
+    pub log_pointer: u64,
 }
 
 ///Result wrapper to consolidate program errors
@@ -55,13 +56,14 @@ impl KvStore {
         KvStore { 
             kv: HashMap::new(),
             directory_path: path,
+            log_pointer: 0,
         }
     }
 
     ///Set the value of a string key to a string. Return an error if the value is not written successfully.
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
         
-        self.kv.insert(key.clone(), value.clone());
+        self.kv.insert(key.clone(), self.log_pointer);
 
         let command = Command::Set{ key, value };
 
@@ -81,6 +83,8 @@ impl KvStore {
         serde_json::to_writer(file, &command)?;
 
         // println!("Set write complete");
+
+        self.log_pointer += 1;
 
         Ok(())
     }
@@ -115,15 +119,19 @@ impl KvStore {
         serde_json::to_writer(file, &command)?;
         // println!("Remove write complete");
 
+        self.log_pointer += 1;
+
         Ok(())
     }
 
         ///Get the string value of a string key. If the key does not exist, return None. Return an error if the value is not read successfully.
     pub fn get(&self, key: String) -> Result<Option<String>> {
         
-        if let Some(value) =  self.kv.get(&key).cloned() {
-            return Ok(Some(value))
+        if let None =  self.kv.get(&key).cloned() {
+            return Ok(None)
         }
+
+        let log_pointer = self.kv.get(&key).unwrap();
 
         let directory: &PathBuf = &self.directory_path;
 
@@ -143,32 +151,40 @@ impl KvStore {
                                                             .filter_map(|it| it.ok())
                                                             .collect::<_>();
 
+        let command_on_disc = deserialized_commands.iter().nth(*log_pointer as usize).unwrap(); //TODO: Need to handle this potential error better
+        
+        println!("Deserialized Command found through log pointer: {:?}", command_on_disc);
+
+        if let Command::Set{ key , value } = *command_on_disc {
+            return Ok(Some(value))
+        } else {
+            return Err(KvsError::Store("Unable to find key through the log pointer".to_owned()))
+        }
+
         // println!("Deserialized Commands within GET: {:?} ", deserialized_commands);
 
         //"replay" commands into the HashMap in memory -> for each command, match against commands and execute
 
-        let mut in_mem_kv =  HashMap::new();
+        // let mut in_mem_kv =  HashMap::new();
 
-        for command in deserialized_commands.iter() {
-            match command {
-                Command::Set { key, value } => in_mem_kv.insert(key.clone(), value.clone()),
-                Command::Rm { key } => in_mem_kv.remove(key),
-                _ => {
-                    continue
-                },
-            };
+        // for command in deserialized_commands.iter() {
+        //     match command {
+        //         Command::Set { key, value } => in_mem_kv.insert(key.clone(), value.clone()),
+        //         Command::Rm { key } => in_mem_kv.remove(key),
+        //         _ => {
+        //             continue
+        //         },
+        //     };
 
-        };
+        // };
 
-        let result = in_mem_kv.get(&key).cloned();
+        // let result = in_mem_kv.get(&key).cloned();
 
         // println!("Result is: {:?}", result);
 
         // if let None = result {
         //     return Err(KvsError::Store("Key not found".to_owned()))
         // }
-
-        Ok(result)
         
     }
 
