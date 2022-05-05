@@ -2,8 +2,8 @@
 //!An implementation of a key value store in Rust
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::io:: {self, Write, Read, BufReader};
-use std::fmt;
+use std::io:: {self, BufWriter, Write, Read, BufReader};
+use std::{fmt, vec};
 use std::error;
 use serde::{Serialize, Deserialize};
 use std::fs::{self, File};
@@ -12,9 +12,9 @@ use std::process;
 
 ///Primary struct is a KvStore containing a single HashMap
 pub struct KvStore {
-    pub kv: HashMap<String, u64>, //Change to store log pointer
+    pub kv: HashMap<String, usize>, //Change to store log pointer
     pub directory_path: PathBuf,
-    pub log_pointer: u64,
+    pub log_pointer: usize,
 }
 
 ///Result wrapper to consolidate program errors
@@ -150,8 +150,11 @@ impl KvStore {
                                                             .into_iter::<Command>()
                                                             .filter_map(|it| it.ok())
                                                             .collect::<_>();
+        println!("Deserialized Commands from get: {:?}", deserialized_commands);
 
-        let command_on_disc = deserialized_commands.iter().nth(*log_pointer as usize).unwrap(); //TODO: Need to handle this potential error better
+        println!("key: {:?}, pointer value: {:?}", &key, log_pointer);
+
+        let command_on_disc = deserialized_commands.iter().nth(*log_pointer).unwrap(); //TODO: Need to handle this potential error better
         
         // println!("Deserialized Command found through log pointer: {:?}", command_on_disc);
 
@@ -208,7 +211,7 @@ impl KvStore {
         //open the log file
         // println!("opening file");
 
-        let directory: PathBuf = path.into();
+        let directory: PathBuf = path.into().clone();
         fs::create_dir_all(&directory)?;
 
         let full_path = directory.join("log.txt");
@@ -216,11 +219,11 @@ impl KvStore {
 
         // let file = File::open(full_path)?;
 
-        let mut file = fs::OpenOptions::new()
+        let file = fs::OpenOptions::new()
             .create(true)
             .append(true)
             .read(true)
-            .open(full_path)?;
+            .open(full_path.clone())?;
         
         // println!("file opened");
 
@@ -256,20 +259,78 @@ impl KvStore {
         // println!("In memory pointer map: {:?}", in_mem_kv.kv);
 
         //Compaction
+        println!("Old disc before compaction: {:?} ", deserialized_commands);
         //create new Vec<Command>
+        let mut new_disc: Vec<Command> = Vec::new();
+    
         //track number of removals
+        let mut removals: usize = 0;
+
         //For (i, command) in deserialized_commands.enumerate()
         //look up command.key in memory hashmap
         //if exits and positon i is equal to hashmap pointer value, then copy to new vec<Command> and set in memory pointer value as (current value minus the removals so far)
         //else increment removal counter by one
         //(Note: if does not exist or exists but position i is less than the hashmap pointer value, then disregard for removal)
+
+        for (i, command) in deserialized_commands.iter().enumerate() {
+            
+            match command {
+                Command::Get{key: _} => continue,
+                Command::Rm{key: _} => continue,
+                Command::Set{ key, value: _} => {
+                    
+                    let pointer = in_mem_kv.kv.get(key);
+
+                    if pointer != None && *pointer.unwrap() == i   {
+                        new_disc.push(command.to_owned());
+                        in_mem_kv.kv.insert(key.to_string(), i - removals);
+                    } else {
+                        removals += 1;
+                    }
+
+                }
+            };
+
+        }
+        
         //write new Vec<Command> to disc & check that pointer values in memory reflect correct disc pointer
+        println!("New compacted disc: {:?} ", new_disc);
+        println!("New log pointer map: {:?} ", in_mem_kv.kv);
+
+        // let mut string_new_disc = String::new();
+
+        // new_disc.into_iter().for_each(|command| {
+
+        //     let serialized = serde_json::to_string(&command).unwrap_or("Unable to serialize Command".to_string());
+        //     string_new_disc.push_str(&serialized);
+
+        // });
+
+        // println!("Convert to string complete");
+
+        // //TODO: Is there a more efficient way to write multiple Commands to disc? Seems like opening a new file handle for each write is inefficient. Perhaps write all to String first?
+
+        // let file = fs::OpenOptions::new()
+        //     .truncate(true)
+        //     .write(true)
+        //     .open(full_path.clone())?;
+
+        // println!("File opened successfully");
+
+        // let mut f = BufWriter::new(file);
+
+        // println!("Attempting to write");
+        
+        // serde_json::to_writer(f, &string_new_disc)?;
+
+        // println!("Write complete");
+
 
         Ok(in_mem_kv)
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Command {
     Set{ key: String, value: String},
     Get{ key: String },
