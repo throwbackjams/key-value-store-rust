@@ -11,6 +11,7 @@ use serde_json;
 use std::process;
 
 ///Primary struct is a KvStore containing a single HashMap
+#[derive(Debug)]
 pub struct KvStore {
     pub kv: HashMap<String, usize>, //Change to store log pointer
     pub directory_path: PathBuf,
@@ -148,11 +149,13 @@ impl KvStore {
 
         let deserialized_commands: Vec<Command> = serde_json::Deserializer::from_reader(file)
                                                             .into_iter::<Command>()
-                                                            .filter_map(|it| it.ok())
+                                                            .flat_map(|it| it.ok())
                                                             .collect::<_>();
-        println!("Deserialized Commands from get: {:?}", deserialized_commands);
 
-        println!("key: {:?}, pointer value: {:?}", &key, log_pointer);
+        // println!("Deserialized Commands from get: {:?}", deserialized_commands);
+
+        // println!("key: {:?}, pointer value: {:?}", &key, log_pointer);
+        // println!("Store pointer value: {:?}", self.log_pointer);
 
         let command_on_disc = deserialized_commands.iter().nth(*log_pointer).unwrap(); //TODO: Need to handle this potential error better
         
@@ -259,7 +262,7 @@ impl KvStore {
         // println!("In memory pointer map: {:?}", in_mem_kv.kv);
 
         //Compaction
-        println!("Old disc before compaction: {:?} ", deserialized_commands);
+        // println!("Old disc before compaction: {:?} ", deserialized_commands);
         //create new Vec<Command>
         let mut new_disc: Vec<Command> = Vec::new();
     
@@ -294,8 +297,12 @@ impl KvStore {
         }
         
         //write new Vec<Command> to disc & check that pointer values in memory reflect correct disc pointer
-        println!("New compacted disc: {:?} ", new_disc);
-        println!("New log pointer map: {:?} ", in_mem_kv.kv);
+        // println!("New compacted disc: {:?} ", new_disc);
+        // println!("New log pointer map: {:?} ", in_mem_kv.kv);
+
+        //reset pointer value
+        in_mem_kv.log_pointer = new_disc.len();
+        // println!("New Store pointer value: {:?}", in_mem_kv.log_pointer);
 
         // let mut string_new_disc = String::new();
 
@@ -308,20 +315,29 @@ impl KvStore {
 
         // println!("Convert to string complete");
 
-        // //TODO: Is there a more efficient way to write multiple Commands to disc? Seems like opening a new file handle for each write is inefficient. Perhaps write all to String first?
-
-        // let file = fs::OpenOptions::new()
-        //     .truncate(true)
-        //     .write(true)
-        //     .open(full_path.clone())?;
-
-        // println!("File opened successfully");
-
-        // let mut f = BufWriter::new(file);
-
-        // println!("Attempting to write");
+        // //TODO: Is there a more efficient way to write multiple Commands to disc? Seems like opening a new file handle for each write is inefficient. Perhaps write Vec<Command> to file and figure out how to deserialize that?
         
-        // serde_json::to_writer(f, &string_new_disc)?;
+        // println!("Attempting to write");
+
+        let _clean_file = fs::OpenOptions::new()
+        .truncate(true)
+        .write(true)
+        .open(full_path.clone())?;
+
+        for command in new_disc.iter() {
+
+            let file = fs::OpenOptions::new()
+            .append(true)
+            .open(full_path.clone())?;
+            
+            // println!("File opened successfully");
+            
+            let mut f = BufWriter::new(file);
+            
+            
+            
+            serde_json::to_writer(f, &command)?;
+        }
 
         // println!("Write complete");
 

@@ -214,6 +214,7 @@ fn overwrite_value() -> Result<()> {
     drop(store);
     let mut store = KvStore::open(temp_dir.path())?;
     assert_eq!(store.get("key1".to_owned())?, Some("value2".to_owned()));
+    println!("Store is : {:?}", store);
     store.set("key1".to_owned(), "value3".to_owned())?;
     assert_eq!(store.get("key1".to_owned())?, Some("value3".to_owned()));
 
@@ -280,6 +281,9 @@ fn compaction() -> Result<()> {
             let value = format!("{}", iter);
             store.set(key, value)?;
         }
+
+        // reopen and check content.
+        let mut store = KvStore::open(temp_dir.path())?;
 
         let new_size = dir_size();
         if new_size > current_size {
