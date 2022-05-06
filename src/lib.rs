@@ -68,19 +68,13 @@ impl KvStore {
 
         let command = Command::Set{ key, value };
 
-        let directory: &PathBuf = &self.directory_path;
-
-        let full_path = directory.join("log.txt");
+        let full_path = self.get_file_path();
         // println!("set full path: {:?}", full_path);
 
         // let file = File::open(full_path)?;
 
-
-        let file = fs::OpenOptions::new()
-                        .append(true)
-                        .create(true)
-                        .read(true)
-                        .open(full_path)?;  //&self.directory_path.join("log.txt")
+        let file = get_file(full_path)?;
+                          
         serde_json::to_writer(file, &command)?;
 
         // println!("Set write complete");
@@ -104,18 +98,12 @@ impl KvStore {
 
         let command = Command::Rm { key };
 
-        let directory: &PathBuf = &self.directory_path;
-
-        let full_path = directory.join("log.txt");
+        let full_path = self.get_file_path();
         // println!("set remove full path: {:?}", full_path);
 
         // let file = File::open(full_path)?;
 
-        let file = fs::OpenOptions::new()
-                        .write(true)
-                        .append(true)
-                        .create(true)
-                        .open(full_path)?;
+        let file = get_file(full_path)?;
 
         serde_json::to_writer(file, &command)?;
         // println!("Remove write complete");
@@ -134,30 +122,22 @@ impl KvStore {
 
         let log_pointer = self.kv.get(&key).unwrap();
 
-        let directory: &PathBuf = &self.directory_path;
-
-        let full_path = directory.join("log.txt");
+        let full_path = self.get_file_path();
+        // println!("set remove full path: {:?}", full_path);
 
         // println!("Opening file on disk as part of GET");
         // println!("full path of GET: {:?}", full_path);
 
-        let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .read(true)
-        .open(full_path)?;
+        let file = get_file(full_path)?;
 
-        let deserialized_commands: Vec<Command> = serde_json::Deserializer::from_reader(file)
-                                                            .into_iter::<Command>()
-                                                            .flat_map(|it| it.ok())
-                                                            .collect::<_>();
+        let deserialized_commands: Vec<Command> = deserialize_commands_from_file(file);
 
         // println!("Deserialized Commands from get: {:?}", deserialized_commands);
 
         // println!("key: {:?}, pointer value: {:?}", &key, log_pointer);
         // println!("Store pointer value: {:?}", self.log_pointer);
 
-        let command_on_disc = deserialized_commands.iter().nth(*log_pointer).unwrap(); //TODO: Need to handle this potential error better
+        let command_on_disc = deserialized_commands.iter().nth(*log_pointer).expect("Log pointer invalid"); //TODO: Should handle this potential error better
         
         // println!("Deserialized Command found through log pointer: {:?}", command_on_disc);
 
@@ -196,22 +176,6 @@ impl KvStore {
 
     ///Open the KvStore at a given path. Return the KvStore
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
-        // println!("called KvStore::open()");
-        
-        //argument: path: impl Into<PathBuf>
-
-        // let mut file = File::open(path)?;
-        // let mut buf = BufReader::new(file)?;
-
-        // // let serialized_string = String::new();
-
-        // // buf.read_to_string(&serialized_string)?;
-
-        // // println!("Serialized string: {:?}", serialized_string);
-
-        // // let deserialized_kv:  = serde_json::Deserializer::from_str(&serialized_string);
-
-        //open the log file
         // println!("opening file");
 
         let directory: PathBuf = path.into().clone();
@@ -222,11 +186,7 @@ impl KvStore {
 
         // let file = File::open(full_path)?;
 
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .read(true)
-            .open(full_path.clone())?;
+        let file = get_file(full_path.clone())?;
         
         // println!("file opened");
 
@@ -237,87 +197,29 @@ impl KvStore {
         // println!("File contents in string: {:?}", string);
 
         //read the log file into a series of commands
-        let deserialized_commands: Vec<Command> = serde_json::Deserializer::from_reader(file)
-                                                            .into_iter::<Command>()
-                                                            .filter_map(|it| it.ok())
-                                                            .collect::<_>();
+        let deserialized_commands: Vec<Command> = deserialize_commands_from_file(file);
 
         // println!("Deserialized Commands: {:?} ", deserialized_commands);
 
         //"replay" commands into the HashMap in memory -> for each command, match against commands and execute
-
         let mut in_mem_kv =  KvStore::new(directory);
-
-        for command in deserialized_commands.iter() {
-            match command {
-                Command::Set { key, value: _ } => { in_mem_kv.kv.insert(key.clone(), in_mem_kv.log_pointer); in_mem_kv.log_pointer += 1;},
-                Command::Rm { key } => { in_mem_kv.kv. remove(key); in_mem_kv.log_pointer +=1; },
-                _ => {
-                    continue
-                },
-            };
-
-        };
+        build_log_pointers(&mut in_mem_kv, deserialized_commands.clone());
 
         // println!("In memory pointer map: {:?}", in_mem_kv.kv);
 
         //Compaction
-        // println!("Old disc before compaction: {:?} ", deserialized_commands);
-        //create new Vec<Command>
+        //println!("Old disc before compaction: {:?} ", deserialized_commands);
         let mut new_disc: Vec<Command> = Vec::new();
-    
-        //track number of removals
-        let mut removals: usize = 0;
-
-        //For (i, command) in deserialized_commands.enumerate()
-        //look up command.key in memory hashmap
-        //if exits and positon i is equal to hashmap pointer value, then copy to new vec<Command> and set in memory pointer value as (current value minus the removals so far)
-        //else increment removal counter by one
-        //(Note: if does not exist or exists but position i is less than the hashmap pointer value, then disregard for removal)
-
-        for (i, command) in deserialized_commands.iter().enumerate() {
-            
-            match command {
-                Command::Get{key: _} => continue,
-                Command::Rm{key: _} => continue,
-                Command::Set{ key, value: _} => {
-                    
-                    let pointer = in_mem_kv.kv.get(key);
-
-                    if pointer != None && *pointer.unwrap() == i   {
-                        new_disc.push(command.to_owned());
-                        in_mem_kv.kv.insert(key.to_string(), i - removals);
-                    } else {
-                        removals += 1;
-                    }
-
-                }
-            };
-
-        }
+        perform_compaction(&mut in_mem_kv, deserialized_commands, &mut new_disc);
         
         //write new Vec<Command> to disc & check that pointer values in memory reflect correct disc pointer
-        // println!("New compacted disc: {:?} ", new_disc);
-        // println!("New log pointer map: {:?} ", in_mem_kv.kv);
+        //println!("New compacted disc: {:?} ", new_disc);
+        //println!("New log pointer map: {:?} ", in_mem_kv.kv);
+        //println!("New Store pointer value: {:?}", in_mem_kv.log_pointer);
 
-        //reset pointer value
-        in_mem_kv.log_pointer = new_disc.len();
-        // println!("New Store pointer value: {:?}", in_mem_kv.log_pointer);
-
-        // let mut string_new_disc = String::new();
-
-        // new_disc.into_iter().for_each(|command| {
-
-        //     let serialized = serde_json::to_string(&command).unwrap_or("Unable to serialize Command".to_string());
-        //     string_new_disc.push_str(&serialized);
-
-        // });
-
-        // println!("Convert to string complete");
-
-        // //TODO: Is there a more efficient way to write multiple Commands to disc? Seems like opening a new file handle for each write is inefficient. Perhaps write Vec<Command> to file and figure out how to deserialize that?
-        
         // println!("Attempting to write");
+        
+        //TODO: Is there a more efficient way to write multiple Commands to disc? Seems like opening a new file handle for each write is inefficient. Perhaps write Vec<Command> to file and figure out how to deserialize that?
 
         let _clean_file = fs::OpenOptions::new()
         .truncate(true)
@@ -332,23 +234,96 @@ impl KvStore {
             
             // println!("File opened successfully");
             
-            let mut f = BufWriter::new(file);
-            
-            
+            let f = BufWriter::new(file);
             
             serde_json::to_writer(f, &command)?;
         }
 
         // println!("Write complete");
-
-
         Ok(in_mem_kv)
     }
+
+    ///  Get the file path for the disc log
+    fn get_file_path(&self) -> PathBuf {
+        self.directory_path.join("log.txt")
+    }
+
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Command {
     Set{ key: String, value: String},
-    Get{ key: String },
     Rm{ key: String },
+}
+
+
+
+///   Open a file given file path
+fn get_file(full_path: PathBuf) -> Result<File> {
+
+    fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .read(true)
+        .open(full_path)
+        .map_err(|err| err.into())
+
+}
+
+///   Deserialize commands from reader
+fn deserialize_commands_from_file(file: File) -> Vec<Command> {
+    
+    serde_json::Deserializer::from_reader(file)
+        .into_iter::<Command>()
+        .flat_map(|it| it.ok())
+        .collect::<_>()
+
+}
+
+
+///Build log pointers for active data in memory
+fn build_log_pointers(in_mem_kv: &mut KvStore, deserialized_commands: Vec<Command>) {
+    for command in deserialized_commands.iter() {
+        match command {
+            Command::Set { key, value: _ } => { in_mem_kv.kv.insert(key.clone(), in_mem_kv.log_pointer); in_mem_kv.log_pointer += 1;},
+            Command::Rm { key } => { in_mem_kv.kv. remove(key); in_mem_kv.log_pointer +=1; },
+        };
+    };
+}
+
+
+///Perform compaction given a KvStore
+fn perform_compaction(in_mem_kv: &mut KvStore, deserialized_commands: Vec<Command>, new_disc: &mut Vec<Command>){
+
+    //track number of removals
+    let mut removals: usize = 0;
+
+    //For (i, command) in deserialized_commands.enumerate()
+    //look up command.key in memory hashmap
+    //if exits and positon i is equal to hashmap pointer value, then copy to new vec<Command> and set in memory pointer value as (current value minus the removals so far)
+    //else increment removal counter by one
+    //(Note: if does not exist or exists but position i is less than the hashmap pointer value, then disregard for removal)
+
+    for (i, command) in deserialized_commands.iter().enumerate() {
+        
+        match command {
+            Command::Rm{key: _} => continue,
+            Command::Set{ key, value: _} => {
+                
+                let pointer = in_mem_kv.kv.get(key);
+
+                if pointer != None && *pointer.unwrap() == i   {
+                    new_disc.push(command.to_owned());
+                    in_mem_kv.kv.insert(key.to_string(), i - removals);
+                } else {
+                    removals += 1;
+                }
+
+            }
+        };
+
+    }
+
+    //reset pointer value
+    in_mem_kv.log_pointer = new_disc.len();
 }
