@@ -1,7 +1,7 @@
 use clap::Parser;
-use std::process;
-use kvs::{KvStore, Result, KvsError};
+use kvs::{KvStore, KvsError, Result};
 use std::path::PathBuf;
+use std::process;
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
@@ -30,9 +30,9 @@ fn main() -> Result<()> {
     let mut in_mem_kv = KvStore::open(&path)?;
 
     // println!("path: {:?}", in_mem_kv.directory_path);
-    
+
     // println!("In memory KV: {:?}", in_mem_kv.kv);
-    
+
     let command = Command::parse();
 
     match command {
@@ -47,45 +47,38 @@ fn main() -> Result<()> {
                     println!("Error: {}", error);
                     process::exit(1);
                 }
-
             }
         }
         Command::Get { key } => {
-            
             let result = in_mem_kv.get(key);
-                            // .map_err(|error| { 
-                            //     if let KvsError::Store(err) = error {
-                            //         println!("{}", err);
-                            //         process::exit(0);
-                            //     }
-                            //  })
-                            //  .map(|result| { 
-                            //      println!("{}", result.unwrap());
-                            //  });
-            
+            // .map_err(|error| {
+            //     if let KvsError::Store(err) = error {
+            //         println!("{}", err);
+            //         process::exit(0);
+            //     }
+            //  })
+            //  .map(|result| {
+            //      println!("{}", result.unwrap());
+            //  });
+
             match result {
                 Ok(Some(value)) => println!("{}", value),
                 Ok(None) => println!("Key not found"),
                 _ => unreachable!(),
             }
-                             
 
             process::exit(0);
         }
         Command::Rm { key } => {
-            
-            let _result = in_mem_kv
-                            .remove(key)
-                            .map_err(|error| {
-                                if let KvsError::Store(err) = error {
-                                println!("{}", err);
-                                process::exit(1);
-                            }
-                            });
+            let _result = in_mem_kv.remove(key).map_err(|error| {
+                if let KvsError::Store(err) = error {
+                    println!("{}", err);
+                    process::exit(1);
+                }
+            });
             // println!("CLI remove command - result: {:?}", result);
 
             process::exit(0);
-
         }
     }
 
