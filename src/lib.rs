@@ -145,31 +145,6 @@ impl KvStore {
                 "Unable to find key through the log pointer".to_owned(),
             ))
         }
-
-        // println!("Deserialized Commands within GET: {:?} ", deserialized_commands);
-
-        //"replay" commands into the HashMap in memory -> for each command, match against commands and execute
-
-        // let mut in_mem_kv =  HashMap::new();
-
-        // for command in deserialized_commands.iter() {
-        //     match command {
-        //         Command::Set { key, value } => in_mem_kv.insert(key.clone(), value.clone()),
-        //         Command::Rm { key } => in_mem_kv.remove(key),
-        //         _ => {
-        //             continue
-        //         },
-        //     };
-
-        // };
-
-        // let result = in_mem_kv.get(&key).cloned();
-
-        // println!("Result is: {:?}", result);
-
-        // if let None = result {
-        //     return Err(KvsError::Store("Key not found".to_owned()))
-        // }
     }
 
     ///Open the KvStore at a given path. Return the KvStore
@@ -182,17 +157,8 @@ impl KvStore {
         let full_path = directory.join("log.txt");
         // println!("full path: {:?}", full_path);
 
-        // let file = File::open(full_path)?;
-
         let file = get_file(full_path.clone())?;
-
         // println!("file opened");
-
-        // let mut string = String::new();
-
-        // file.clone().read_to_string(&mut string)?;
-
-        // println!("File contents in string: {:?}", string);
 
         //read the log file into a series of commands
         let deserialized_commands: Vec<Command> = deserialize_commands_from_file(file);
@@ -218,7 +184,6 @@ impl KvStore {
         // println!("Attempting to write");
 
         //TODO: Is there a more efficient way to write multiple Commands to disc? Seems like opening a new file handle for each write is inefficient. Perhaps write Vec<Command> to file and figure out how to deserialize that?
-
         let _clean_file = fs::OpenOptions::new()
             .truncate(true)
             .write(true)
