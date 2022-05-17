@@ -7,6 +7,8 @@ use std::fs::{self, File};
 use std::io::{self, BufWriter};
 use std::path::PathBuf;
 
+pub trait KvsEngine{}
+
 ///Primary struct is a KvStore containing a single HashMap
 #[derive(Debug)]
 pub struct KvStore {
