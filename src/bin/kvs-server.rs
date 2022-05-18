@@ -1,5 +1,5 @@
 use clap::Parser;
-// use kvs::{KvStore, KvsError, Result};
+// use kvs::{KvStore, KvsError, Result, KvsEngine};
 use tracing::{info, trace};
 use tracing_subscriber;
 use std::net::{TcpListener, TcpStream};
@@ -34,7 +34,7 @@ fn main() {
         None => ip = String::from("127.0.0.1:4000"),
     };
 
-    //TODO! Handle IP Address / Port Parsing & Error
+    //TODO! Handle IP Address / Port Parsing & Error - OR have the handling logic sit in the kvs lib and import
 
     info!("Listening on IP Address:Port: {}", ip);
     let listener = TcpListener::bind(ip).unwrap(); //TODO! Better error handling

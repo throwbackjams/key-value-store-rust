@@ -6,8 +6,60 @@ use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, BufWriter};
 use std::path::PathBuf;
+use std::net::{self, IpAddr, TcpListener, TcpStream, Ipv4Addr, Ipv6Addr, AddrParseError};
+use std::str::FromStr;
 
-pub trait KvsEngine{}
+pub struct KvsClient{}
+
+impl KvsClient {
+
+    //TODO! IP address parsing?
+
+    //TODO! Send operation to KvsServer at a certain IP
+
+    //TODO! Receive response and proprogate to CLI (success or error)
+
+}
+
+pub struct KvsServer{}
+
+impl KvsServer{
+
+    fn connect(ip_string: String) -> Result<()>{
+
+        let ip_address = parse_ip(ip_string);
+
+        Ok(())
+    }
+
+    //TODO! Listen for operations from client at a certain IP
+
+    //TODO! Perform operation by calling KvsEngine
+
+    //TODO! Return result or propogate error to client
+
+}
+
+//NOTE! Utility function for connect
+fn parse_ip(ip_string: String) -> Result<IpAddr> {
+    if ip_string.as_bytes().len() < 33 { //NOTE: Is there a better / more succint way to determine V4 vs. V6?
+        Ipv4Addr::from_str(&ip_string)
+            .map_err(|err| {err.into()})
+            .map(|ipv4| {IpAddr::V4(ipv4)})
+    } else {
+        Ipv6Addr::from_str(&ip_string)
+            .map_err(|err| {err.into()})
+            .map(|ipv6| {IpAddr::V6(ipv6)})
+    }
+}
+
+pub trait KvsEngine{
+    fn set(&mut self, key: String, value: String) -> Result<()>;
+
+    fn get(&mut self, key: String) -> Result<Option<String>>;
+
+    fn remove(&mut self, key: String) -> Result<()>;
+}
 
 ///Primary struct is a KvStore containing a single HashMap
 #[derive(Debug)]
@@ -26,6 +78,8 @@ pub enum KvsError {
     Io(io::Error),
     Serde(serde_json::Error),
     Store(String),
+    IpAddrParse(AddrParseError),
+    //TODO! Add IP Parse error and server error heres
 }
 
 impl fmt::Display for KvsError {
@@ -33,7 +87,8 @@ impl fmt::Display for KvsError {
         match self {
             KvsError::Io(err) => write!(f, "IO error: {}", err),
             KvsError::Serde(err) => write!(f, "Serde error: {}", err),
-            KvsError::Store(err) => write!(f, "{}", err),
+            KvsError::Store(err) => write!(f, "Store error {}", err),
+            KvsError::IpAddrParse(err) => write!(f, "IP error {}", err),
         }
     }
 }
@@ -50,6 +105,12 @@ impl From<serde_json::Error> for KvsError {
     }
 }
 
+impl From<net::AddrParseError> for KvsError {
+    fn from(err: net::AddrParseError) -> KvsError {
+        KvsError::IpAddrParse(err)
+    }
+}
+
 impl KvStore {
     ///Create a hashmap
     pub fn new(path: PathBuf) -> KvStore {
@@ -57,95 +118,6 @@ impl KvStore {
             kv: HashMap::new(),
             directory_path: path,
             log_pointer: 0,
-        }
-    }
-
-    ///Set the value of a string key to a string. Return an error if the value is not written successfully.
-    pub fn set(&mut self, key: String, value: String) -> Result<()> {
-        self.kv.insert(key.clone(), self.log_pointer);
-
-        let command = Command::Set { key, value };
-
-        let full_path = self.get_file_path();
-        // println!("set full path: {:?}", full_path);
-
-        // let file = File::open(full_path)?;
-
-        let file = get_file(full_path)?;
-
-        serde_json::to_writer(file, &command)?;
-
-        // println!("Set write complete");
-
-        self.log_pointer += 1;
-
-        Ok(())
-    }
-
-    ///Remove a given key. Return an error if the key does not exist or is not removed successfully.
-    pub fn remove(&mut self, key: String) -> Result<()> {
-        let result = self.kv.remove(&key);
-
-        // println!("Remove result: {:?}", result.clone());
-
-        if result.is_none() {
-            return Err(KvsError::Store("Key not found".to_owned()));
-        }
-
-        // println!("Writing remove to disk");
-
-        let command = Command::Rm { key };
-
-        let full_path = self.get_file_path();
-        // println!("set remove full path: {:?}", full_path);
-
-        // let file = File::open(full_path)?;
-
-        let file = get_file(full_path)?;
-
-        serde_json::to_writer(file, &command)?;
-        // println!("Remove write complete");
-
-        self.log_pointer += 1;
-
-        Ok(())
-    }
-
-    ///Get the string value of a string key. If the key does not exist, return None. Return an error if the value is not read successfully.
-    pub fn get(&self, key: String) -> Result<Option<String>> {
-        if self.kv.get(&key).cloned().is_none() {
-            return Ok(None);
-        }
-
-        let log_pointer = self.kv.get(&key).unwrap();
-
-        let full_path = self.get_file_path();
-        // println!("set remove full path: {:?}", full_path);
-
-        // println!("Opening file on disk as part of GET");
-        // println!("full path of GET: {:?}", full_path);
-
-        let file = get_file(full_path)?;
-
-        let deserialized_commands: Vec<Command> = deserialize_commands_from_file(file);
-
-        // println!("Deserialized Commands from get: {:?}", deserialized_commands);
-
-        // println!("key: {:?}, pointer value: {:?}", &key, log_pointer);
-        // println!("Store pointer value: {:?}", self.log_pointer);
-
-        let command_on_disc = deserialized_commands
-            .get(*log_pointer)
-            .expect("Log pointer invalid"); //TODO: Should handle this potential error better
-
-        // println!("Deserialized Command found through log pointer: {:?}", command_on_disc);
-
-        if let Command::Set { key: _, value } = command_on_disc {
-            Ok(Some(value.to_owned()))
-        } else {
-            Err(KvsError::Store(
-                "Unable to find key through the log pointer".to_owned(),
-            ))
         }
     }
 
@@ -210,6 +182,98 @@ impl KvStore {
     ///  Get the file path for the disc log
     fn get_file_path(&self) -> PathBuf {
         self.directory_path.join("log.txt")
+    }
+}
+
+impl KvsEngine for KvStore {
+
+    ///Set the value of a string key to a string. Return an error if the value is not written successfully.
+    fn set(&mut self, key: String, value: String) -> Result<()> {
+        self.kv.insert(key.clone(), self.log_pointer);
+
+        let command = Command::Set { key, value };
+
+        let full_path = self.get_file_path();
+        // println!("set full path: {:?}", full_path);
+
+        // let file = File::open(full_path)?;
+
+        let file = get_file(full_path)?;
+
+        serde_json::to_writer(file, &command)?;
+
+        // println!("Set write complete");
+
+        self.log_pointer += 1;
+
+        Ok(())
+    }
+
+    ///Remove a given key. Return an error if the key does not exist or is not removed successfully.
+    fn remove(&mut self, key: String) -> Result<()> {
+        let result = self.kv.remove(&key);
+
+        // println!("Remove result: {:?}", result.clone());
+
+        if result.is_none() {
+            return Err(KvsError::Store("Key not found".to_owned()));
+        }
+
+        // println!("Writing remove to disk");
+
+        let command = Command::Rm { key };
+
+        let full_path = self.get_file_path();
+        // println!("set remove full path: {:?}", full_path);
+
+        // let file = File::open(full_path)?;
+
+        let file = get_file(full_path)?;
+
+        serde_json::to_writer(file, &command)?;
+        // println!("Remove write complete");
+
+        self.log_pointer += 1;
+
+        Ok(())
+    }
+
+    ///Get the string value of a string key. If the key does not exist, return None. Return an error if the value is not read successfully.
+    fn get(&mut self, key: String) -> Result<Option<String>> {
+        if self.kv.get(&key).cloned().is_none() {
+            return Ok(None);
+        }
+
+        let log_pointer = self.kv.get(&key).unwrap();
+
+        let full_path = self.get_file_path();
+        // println!("set remove full path: {:?}", full_path);
+
+        // println!("Opening file on disk as part of GET");
+        // println!("full path of GET: {:?}", full_path);
+
+        let file = get_file(full_path)?;
+
+        let deserialized_commands: Vec<Command> = deserialize_commands_from_file(file);
+
+        // println!("Deserialized Commands from get: {:?}", deserialized_commands);
+
+        // println!("key: {:?}, pointer value: {:?}", &key, log_pointer);
+        // println!("Store pointer value: {:?}", self.log_pointer);
+
+        let command_on_disc = deserialized_commands
+            .get(*log_pointer)
+            .expect("Log pointer invalid"); //TODO: Should handle this potential error better
+
+        // println!("Deserialized Command found through log pointer: {:?}", command_on_disc);
+
+        if let Command::Set { key: _, value } = command_on_disc {
+            Ok(Some(value.to_owned()))
+        } else {
+            Err(KvsError::Store(
+                "Unable to find key through the log pointer".to_owned(),
+            ))
+        }
     }
 }
 

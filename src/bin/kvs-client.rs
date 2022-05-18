@@ -1,5 +1,5 @@
 use clap::Parser;
-use kvs::{KvStore, KvsError, Result};
+use kvs::{KvStore, KvsError, Result, KvsEngine};
 use std::path::PathBuf;
 use std::process;
 use tracing::{info, trace};
@@ -68,7 +68,7 @@ fn main() -> Result<()> {
         Some(Command::Set { key, value, addr }) => {
             // println!("Key value pair to be set {:?} : {:?}", key, value);
 
-            //TODO! Insert function to handle IP parsing
+            //TODO! Handle IP Address / Port Parsing & Error - OR have the handling logic sit in the kvs lib and import
 
             // let ip2 = IpAddr::from_str(addr)?;
             // println!("ip2: {:?}", ip2);
