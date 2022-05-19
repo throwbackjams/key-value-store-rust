@@ -4,10 +4,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::{self, File};
-use std::io::{self, BufWriter};
+use std::io::{self, Read, BufWriter};
 use std::path::PathBuf;
 use std::net::{self, IpAddr, TcpListener, TcpStream, Ipv4Addr, Ipv6Addr, AddrParseError};
 use std::str::FromStr;
+
+const GET: &[u8] = b"GET";
+const SET: &[u8] = b"SET";
+const RM: &[u8] = b"RM";
 
 pub struct KvsClient{}
 
@@ -27,21 +31,78 @@ impl KvsServer{
 
     fn connect(ip_string: String) -> Result<()>{
 
-        let ip_address = parse_ip(ip_string);
+        let path = PathBuf::from("");
+
+        let _verified_ip_address = parse_ip(&ip_string)?;
+
+        let listener = TcpListener::bind(ip_string)?;
+
+        for stream in listener.incoming() {
+            
+            let mut kv_store = KvStore::open(&path)?;
+            
+            let unwrapp_stream = stream?;
+
+            KvsServer::handle_request(unwrapp_stream, kv_store);
+        }
 
         Ok(())
     }
 
-    //TODO! Listen for operations from client at a certain IP
-
     //TODO! Perform operation by calling KvsEngine
+    fn handle_request(mut stream: TcpStream, mut kv_store: KvStore ) -> Result<()> {
+        
+        let mut buffer = [0; 1024];
+
+        stream.read(&mut buffer)?;
+
+        //Split arguments by space
+        let arguments:Vec<&[u8]> = buffer.split(|byte| &[*byte] == b" ").collect();
+
+        //TODO! translate bytes in the buffer to commands
+        match arguments.get(0) {
+            Some(&GET) => {
+                //decode key
+                let key_bytes = arguments
+                            .get(1)
+                            .ok_or(KvsError::CommandError("Command unrecognized".to_string()));
+                
+                if let Err(error) = key_bytes {
+                    return Err(error)
+                }
+
+                let key = String::from_utf8(key_bytes.unwrap().to_vec())?;
+
+                //Handle get request (send response back)
+                let result = kv_store.get(key);
+                
+            },
+            Some(&SET) => {
+                //decode key and value
+                let key = arguments.get(1).ok_or(|| KvsError::CommandError("Command unrecognized".to_string()));
+                let value = arguments.get(2).ok_or(|| KvsError::CommandError("Command unrecognized".to_string()));
+                //Handle set request (send success reponse)
+            },
+            Some(&RM) => {
+                //decode key
+                let key = arguments.get(1).ok_or(|| KvsError::CommandError("Command unrecognized".to_string()));
+                //Handle remove request
+            },
+            _ => {
+                //return error
+            }
+        }
+
+        Ok(())
+
+    }
 
     //TODO! Return result or propogate error to client
 
 }
 
-//NOTE! Utility function for connect
-fn parse_ip(ip_string: String) -> Result<IpAddr> {
+//NOTE! Utility function for connect method
+fn parse_ip(ip_string: &String) -> Result<IpAddr> {
     if ip_string.as_bytes().len() < 33 { //NOTE: Is there a better / more succint way to determine V4 vs. V6?
         Ipv4Addr::from_str(&ip_string)
             .map_err(|err| {err.into()})
@@ -79,6 +140,7 @@ pub enum KvsError {
     Serde(serde_json::Error),
     Store(String),
     IpAddrParse(AddrParseError),
+    CommandError(String),
     //TODO! Add IP Parse error and server error heres
 }
 
@@ -89,6 +151,7 @@ impl fmt::Display for KvsError {
             KvsError::Serde(err) => write!(f, "Serde error: {}", err),
             KvsError::Store(err) => write!(f, "Store error {}", err),
             KvsError::IpAddrParse(err) => write!(f, "IP error {}", err),
+            KvsError::CommandError(err) => write!(f, "Command error: {}", err),
         }
     }
 }
@@ -108,6 +171,12 @@ impl From<serde_json::Error> for KvsError {
 impl From<net::AddrParseError> for KvsError {
     fn from(err: net::AddrParseError) -> KvsError {
         KvsError::IpAddrParse(err)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for KvsError {
+    fn from(err: std::string::FromUtf8Error) -> KvsError {
+        KvsError::CommandError(err.to_string())
     }
 }
 
