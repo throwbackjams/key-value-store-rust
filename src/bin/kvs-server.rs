@@ -1,9 +1,7 @@
 use clap::Parser;
-use kvs::{KvStore, KvsError, Result, KvsEngine, KvsServer};
+use kvs::{Result, KvsServer};
 use tracing::{info, trace};
 use tracing_subscriber;
-use std::net::{TcpListener, TcpStream};
-use std::path::PathBuf;
 
 
 #[derive(Debug, Parser)]
@@ -39,9 +37,9 @@ fn main() -> Result<()> {
     info!("Running kvs-server version: {}", env!("CARGO_PKG_VERSION"));
     info!("Engine used: {:?}", cli.engine.as_deref());
     
-    KvsServer::listen_and_serve_requests(ip);
+    KvsServer::listen_and_serve_requests(ip)
     
-    Ok(())
+    // Ok(())
     // println!("addr: {:?}", ip);
     // println!("engine: {:?}", cli.engine.as_deref());
 

@@ -20,11 +20,20 @@ impl KvsClient {
 
     //TODO! IP address parsing
     //TODO! Send operation to KvsServer at a certain IP
-    // pub fn connect(ip_string: String) -> Result<TcpStream> {
-    //     let _verified_ip_address = parse_ip(&ip_string)?;
-    // }
-
     //TODO! Receive response and proprogate to CLI (success or error)
+    pub fn connect_and_send_request(ip_string: String, message: String) -> Result<[u8;1024]> {
+        let _verified_ip_address = parse_ip(&ip_string)?;
+
+        let mut stream = TcpStream::connect(ip_string)?;
+
+        stream.write(message.as_bytes())?;
+
+        let mut buffer = [0; 1024];
+
+        stream.read(&mut buffer)?;
+
+        Ok(buffer)
+    }
 
 }
 
@@ -42,11 +51,11 @@ impl KvsServer{
 
         for stream in listener.incoming() {
             
-            let mut kv_store = KvStore::open(&path)?; //Q: What happens if two simultaneous connections occur? Race?
+            let kv_store = KvStore::open(&path)?; //Q: What happens if two simultaneous connections occur? Race?
             
             let unwrapp_stream = stream?;
 
-            KvsServer::handle_request(unwrapp_stream, kv_store);
+            KvsServer::handle_request(unwrapp_stream, kv_store)?
         }
 
         Ok(())
@@ -105,7 +114,7 @@ impl KvsServer{
                 let key = String::from_utf8(key_bytes.unwrap().to_vec())?;
                 let value = String::from_utf8(value_bytes.unwrap().to_vec())?;
 
-                let result = kv_store.set(key, value)?;
+                let _result = kv_store.set(key, value)?;
 
                 //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
                 //Send result back (encapsulate in function?)
@@ -128,7 +137,7 @@ impl KvsServer{
 
                 let key = String::from_utf8(key_bytes.unwrap().to_vec())?;
 
-                let result = kv_store.remove(key)?;
+                let _result = kv_store.remove(key)?;
 
                 //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
                 //Send result back (encapsulate in function?)

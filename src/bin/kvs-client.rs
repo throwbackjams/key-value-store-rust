@@ -1,10 +1,8 @@
 use clap::Parser;
-use kvs::{KvStore, KvsError, Result, KvsEngine};
-use std::path::PathBuf;
+use kvs::{Result, KvsClient};
 use std::process;
-use tracing::{info, trace};
+use tracing::{info};
 use tracing_subscriber;
-use std::net::{IpAddr, TcpListener, TcpStream, Ipv4Addr, Ipv6Addr};
 
 const DEFAULT_IP_ADDRESS: &str = "127.0.0.1:4000";
 
@@ -50,8 +48,8 @@ enum Command {
 
 
 fn main() -> Result<()> {
-    let path = PathBuf::from("");
-    let mut in_mem_kv = KvStore::open(&path)?;
+    // let path = PathBuf::from("");
+    // let mut in_mem_kv = KvStore::open(&path)?;
 
     // println!("path: {:?}", in_mem_kv.directory_path);
 
@@ -80,21 +78,31 @@ fn main() -> Result<()> {
             //     None => ip = IpAddr::from("127.0.0.1:4000")?,
             // };
             
+            
+            // let result = in_mem_kv.set(key, value);
+            
             info!("IP Address target: {:?}", addr);
+            let message = String::from(format!("SET {} {}", key, value));
+            info!("Message request sent: {}", message);
 
-            let result = in_mem_kv.set(key, value);
+            let response = KvsClient::connect_and_send_request(addr, message)?;
 
+            let string_response = String::from_utf8_lossy(&response);
 
-            match result {
-                Ok(()) => process::exit(0),
-                Err(error) => {
-                    println!("Error: {}", error);
-                    process::exit(1);
-                }
-            }
+            info!("Response: {:?}", string_response);
+
+            // match result {
+            //     Ok(()) => process::exit(0),
+            //     Err(error) => {
+            //         println!("Error: {}", error);
+            //         process::exit(1);
+            //     }
+            // }
+
+            Ok(())
         }
         Some(Command::Get { key, addr }) => {
-            let result = in_mem_kv.get(key);
+            // let result = in_mem_kv.get(key);
             // .map_err(|error| {
             //     if let KvsError::Store(err) = error {
             //         println!("{}", err);
@@ -106,26 +114,42 @@ fn main() -> Result<()> {
             //  });
 
             info!("IP Address target: {:?}", addr);
+            let message = String::from(format!("GET {}", key));
+            info!("Message request sent: {}", message);
 
-            match result {
-                Ok(Some(value)) => println!("{}", value),
-                Ok(None) => println!("Key not found"),
-                _ => unreachable!(),
-            }
+            let response = KvsClient::connect_and_send_request(addr, message)?;
+
+            let string_response = String::from_utf8_lossy(&response);
+
+            info!("Response: {:?}", string_response);
+
+            // match result {
+            //     Ok(Some(value)) => println!("{}", value),
+            //     Ok(None) => println!("Key not found"),
+            //     _ => unreachable!(),
+            // }
 
             process::exit(0);
         }
         Some(Command::Rm { key, addr }) => {
-            
-            info!("IP Address target: {:?}", addr);
 
-            let _result = in_mem_kv.remove(key).map_err(|error| {
-                if let KvsError::Store(err) = error {
-                    println!("{}", err);
-                    process::exit(1);
-                }
-            });
+            // let _result = in_mem_kv.remove(key).map_err(|error| {
+            //     if let KvsError::Store(err) = error {
+            //         println!("{}", err);
+            //         process::exit(1);
+            //     }
+            // });
             // println!("CLI remove command - result: {:?}", result);
+
+            info!("IP Address target: {:?}", addr);
+            let message = String::from(format!("RM {}", key));
+            info!("Message request sent: {}", message);
+
+            let response = KvsClient::connect_and_send_request(addr, message)?;
+
+            let string_response = String::from_utf8_lossy(&response);
+
+            info!("Response: {:?}", string_response);
 
             process::exit(0);
         }
