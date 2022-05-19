@@ -20,6 +20,9 @@ impl KvsClient {
 
     //TODO! IP address parsing
     //TODO! Send operation to KvsServer at a certain IP
+    // pub fn connect(ip_string: String) -> Result<TcpStream> {
+    //     let _verified_ip_address = parse_ip(&ip_string)?;
+    // }
 
     //TODO! Receive response and proprogate to CLI (success or error)
 
@@ -28,29 +31,29 @@ impl KvsClient {
 pub struct KvsServer{}
 
 impl KvsServer{
-    //NOTE! Moved this to the server CLI; more intuitive to have the verification and listening there
-    // fn connect(ip_string: String) -> Result<()>{
+    
+    pub fn listen_and_serve_requests(ip_string: String) -> Result<()>{
 
-    //     let path = PathBuf::from("");
+        let path = PathBuf::from("");
 
-    //     let _verified_ip_address = parse_ip(&ip_string)?;
+        let _verified_ip_address = parse_ip(&ip_string)?;
 
-    //     let listener = TcpListener::bind(ip_string)?;
+        let listener = TcpListener::bind(ip_string)?;
 
-    //     for stream in listener.incoming() {
+        for stream in listener.incoming() {
             
-    //         let mut kv_store = KvStore::open(&path)?; //Q: What happens if two simultaneous connections occur? Race?
+            let mut kv_store = KvStore::open(&path)?; //Q: What happens if two simultaneous connections occur? Race?
             
-    //         let unwrapp_stream = stream?;
+            let unwrapp_stream = stream?;
 
-    //         KvsServer::handle_request(unwrapp_stream, kv_store);
-    //     }
+            KvsServer::handle_request(unwrapp_stream, kv_store);
+        }
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 
     //TODO! Perform operation by calling KvsEngine
-    pub fn handle_request(mut stream: TcpStream, mut kv_store: KvStore ) -> Result<()> {
+    fn handle_request(mut stream: TcpStream, mut kv_store: KvStore ) -> Result<()> {
         
         let mut buffer = [0; 1024];
 
@@ -151,7 +154,7 @@ impl KvsServer{
 }
 
 //NOTE! Utility function for connect method
-pub fn parse_ip(ip_string: &String) -> Result<IpAddr> {
+fn parse_ip(ip_string: &String) -> Result<IpAddr> {
     if ip_string.as_bytes().len() < 33 { //NOTE: Is there a better / more succint way to determine V4 vs. V6?
         Ipv4Addr::from_str(&ip_string)
             .map_err(|err| {err.into()})

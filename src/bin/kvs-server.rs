@@ -1,5 +1,5 @@
 use clap::Parser;
-use kvs::{KvStore, KvsError, Result, KvsEngine, KvsServer, parse_ip};
+use kvs::{KvStore, KvsError, Result, KvsEngine, KvsServer};
 use tracing::{info, trace};
 use tracing_subscriber;
 use std::net::{TcpListener, TcpStream};
@@ -35,24 +35,12 @@ fn main() -> Result<()> {
         None => ip = String::from("127.0.0.1:4000"),
     };
 
-    let path = PathBuf::from("");
-    let _verified_ip_address = parse_ip(&ip)?;
-
-    info!("Listening on IP Address:Port: {}", ip);
-    let listener = TcpListener::bind(ip)?; //TODO! Better error handling
-    
+    info!("Beginning Server listening on IP Address:Port: {}", ip);
     info!("Running kvs-server version: {}", env!("CARGO_PKG_VERSION"));
     info!("Engine used: {:?}", cli.engine.as_deref());
-
-    for stream in listener.incoming() {
-        let mut kv_store = KvStore::open(&path)?; //Q: What happens if two simultaneous connections occur? Race?
-        let unwrapped_stream = stream?;
-        info!("Connection established with stream: {:?}", unwrapped_stream);
-
-        info!("Server handling request");
-        KvsServer::handle_request(unwrapped_stream, kv_store);
-    }
-
+    
+    KvsServer::listen_and_serve_requests(ip);
+    
     Ok(())
     // println!("addr: {:?}", ip);
     // println!("engine: {:?}", cli.engine.as_deref());
