@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::{self, File};
-use std::io::{self, Read, BufWriter};
+use std::io::{self, Read, Write, BufWriter};
 use std::path::PathBuf;
 use std::net::{self, IpAddr, TcpListener, TcpStream, Ipv4Addr, Ipv6Addr, AddrParseError};
 use std::str::FromStr;
@@ -71,22 +71,70 @@ impl KvsServer{
                     return Err(error)
                 }
 
-                let key = String::from_utf8(key_bytes.unwrap().to_vec())?;
+                let key = String::from_utf8(key_bytes.unwrap().to_vec())?; //NOTE! Is there a better way to handle this?
 
                 //Handle get request (send response back)
-                let result = kv_store.get(key);
+                let result = kv_store.get(key)?;
+
+                //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
+                //Send result back (encapsulate in function?)
+                let response = format!("+{}\r\n", result.unwrap_or("None".to_string()));
+
+                stream.write(response.as_bytes())?;
+                stream.flush()?;
                 
             },
             Some(&SET) => {
                 //decode key and value
-                let key = arguments.get(1).ok_or(|| KvsError::CommandError("Command unrecognized".to_string()));
-                let value = arguments.get(2).ok_or(|| KvsError::CommandError("Command unrecognized".to_string()));
+                let key_bytes = arguments.get(1).ok_or(KvsError::CommandError("Command unrecognized".to_string()));
+                let value_bytes = arguments.get(2).ok_or(KvsError::CommandError("Command unrecognized".to_string()));
+                
                 //Handle set request (send success reponse)
+
+                if let Err(error) = key_bytes {
+                    return Err(error)
+                }
+
+                if let Err(error) = value_bytes {
+                    return Err(error)
+                }
+
+                let key = String::from_utf8(key_bytes.unwrap().to_vec())?;
+                let value = String::from_utf8(value_bytes.unwrap().to_vec())?;
+
+                let result = kv_store.set(key, value)?;
+
+                //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
+                //Send result back (encapsulate in function?)
+                let response = "+OK\r\n";
+
+                stream.write(response.as_bytes())?;
+                stream.flush()?;
+
+
+
             },
             Some(&RM) => {
                 //decode key
-                let key = arguments.get(1).ok_or(|| KvsError::CommandError("Command unrecognized".to_string()));
+                let key_bytes = arguments.get(1).ok_or(KvsError::CommandError("Command unrecognized".to_string()));
                 //Handle remove request
+
+                if let Err(error) = key_bytes {
+                    return Err(error)
+                }
+
+                let key = String::from_utf8(key_bytes.unwrap().to_vec())?;
+
+                let result = kv_store.remove(key)?;
+
+                //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
+                //Send result back (encapsulate in function?)
+                let response = "+OK\r\n";
+
+                stream.write(response.as_bytes())?;
+                stream.flush()?;
+
+
             },
             _ => {
                 //return error
