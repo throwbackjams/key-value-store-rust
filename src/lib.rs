@@ -12,13 +12,13 @@ use std::str::FromStr;
 const GET: &[u8] = b"GET";
 const SET: &[u8] = b"SET";
 const RM: &[u8] = b"RM";
+const OK_RESPONSE: &[u8] = b"+OK\r\n";
 
 pub struct KvsClient{}
 
 impl KvsClient {
 
-    //TODO! IP address parsing?
-
+    //TODO! IP address parsing
     //TODO! Send operation to KvsServer at a certain IP
 
     //TODO! Receive response and proprogate to CLI (success or error)
@@ -28,29 +28,29 @@ impl KvsClient {
 pub struct KvsServer{}
 
 impl KvsServer{
+    //NOTE! Moved this to the server CLI; more intuitive to have the verification and listening there
+    // fn connect(ip_string: String) -> Result<()>{
 
-    fn connect(ip_string: String) -> Result<()>{
+    //     let path = PathBuf::from("");
 
-        let path = PathBuf::from("");
+    //     let _verified_ip_address = parse_ip(&ip_string)?;
 
-        let _verified_ip_address = parse_ip(&ip_string)?;
+    //     let listener = TcpListener::bind(ip_string)?;
 
-        let listener = TcpListener::bind(ip_string)?;
-
-        for stream in listener.incoming() {
+    //     for stream in listener.incoming() {
             
-            let mut kv_store = KvStore::open(&path)?;
+    //         let mut kv_store = KvStore::open(&path)?; //Q: What happens if two simultaneous connections occur? Race?
             
-            let unwrapp_stream = stream?;
+    //         let unwrapp_stream = stream?;
 
-            KvsServer::handle_request(unwrapp_stream, kv_store);
-        }
+    //         KvsServer::handle_request(unwrapp_stream, kv_store);
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     //TODO! Perform operation by calling KvsEngine
-    fn handle_request(mut stream: TcpStream, mut kv_store: KvStore ) -> Result<()> {
+    pub fn handle_request(mut stream: TcpStream, mut kv_store: KvStore ) -> Result<()> {
         
         let mut buffer = [0; 1024];
 
@@ -106,9 +106,9 @@ impl KvsServer{
 
                 //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
                 //Send result back (encapsulate in function?)
-                let response = "+OK\r\n";
+                let response = OK_RESPONSE;
 
-                stream.write(response.as_bytes())?;
+                stream.write(response)?;
                 stream.flush()?;
 
 
@@ -129,15 +129,16 @@ impl KvsServer{
 
                 //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
                 //Send result back (encapsulate in function?)
-                let response = "+OK\r\n";
+                let response = OK_RESPONSE;
 
-                stream.write(response.as_bytes())?;
+                stream.write(response)?;
                 stream.flush()?;
 
 
             },
             _ => {
                 //return error
+                return Err(KvsError::CommandError("Command unrecognized".to_string()))
             }
         }
 
@@ -150,7 +151,7 @@ impl KvsServer{
 }
 
 //NOTE! Utility function for connect method
-fn parse_ip(ip_string: &String) -> Result<IpAddr> {
+pub fn parse_ip(ip_string: &String) -> Result<IpAddr> {
     if ip_string.as_bytes().len() < 33 { //NOTE: Is there a better / more succint way to determine V4 vs. V6?
         Ipv4Addr::from_str(&ip_string)
             .map_err(|err| {err.into()})
@@ -161,6 +162,7 @@ fn parse_ip(ip_string: &String) -> Result<IpAddr> {
             .map(|ipv6| {IpAddr::V6(ipv6)})
     }
 }
+
 
 pub trait KvsEngine{
     fn set(&mut self, key: String, value: String) -> Result<()>;

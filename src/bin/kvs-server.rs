@@ -1,8 +1,9 @@
 use clap::Parser;
-// use kvs::{KvStore, KvsError, Result, KvsEngine};
+use kvs::{KvStore, KvsError, Result, KvsEngine, KvsServer, parse_ip};
 use tracing::{info, trace};
 use tracing_subscriber;
 use std::net::{TcpListener, TcpStream};
+use std::path::PathBuf;
 
 
 #[derive(Debug, Parser)]
@@ -16,7 +17,7 @@ struct Cli{
     engine: Option<String>,
 }
 
-fn main() {
+fn main() -> Result<()> {
     
     let subscriber = tracing_subscriber::FmtSubscriber::new();
 
@@ -34,26 +35,27 @@ fn main() {
         None => ip = String::from("127.0.0.1:4000"),
     };
 
-    //TODO! Handle IP Address / Port Parsing & Error - OR have the handling logic sit in the kvs lib and import
+    let path = PathBuf::from("");
+    let _verified_ip_address = parse_ip(&ip)?;
 
     info!("Listening on IP Address:Port: {}", ip);
-    let listener = TcpListener::bind(ip).unwrap(); //TODO! Better error handling
+    let listener = TcpListener::bind(ip)?; //TODO! Better error handling
     
     info!("Running kvs-server version: {}", env!("CARGO_PKG_VERSION"));
     info!("Engine used: {:?}", cli.engine.as_deref());
 
     for stream in listener.incoming() {
-        let stream = stream.unwrap();
-        info!("Connection established with stream: {:?}", stream);
+        let mut kv_store = KvStore::open(&path)?; //Q: What happens if two simultaneous connections occur? Race?
+        let unwrapped_stream = stream?;
+        info!("Connection established with stream: {:?}", unwrapped_stream);
 
-        handle_connection(stream);
+        info!("Server handling request");
+        KvsServer::handle_request(unwrapped_stream, kv_store);
     }
 
+    Ok(())
     // println!("addr: {:?}", ip);
     // println!("engine: {:?}", cli.engine.as_deref());
 
 }
 
-fn handle_connection(mut stream: TcpStream) {
-    info!("Inside handle_connection");
-}
