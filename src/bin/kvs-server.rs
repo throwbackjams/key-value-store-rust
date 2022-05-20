@@ -26,7 +26,7 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    let ip: String;
+    let mut ip: String;
 
     match cli.addr {
         Some(addr) => ip = addr,
@@ -37,9 +37,9 @@ fn main() -> Result<()> {
     info!("Running kvs-server version: {}", env!("CARGO_PKG_VERSION"));
     info!("Engine used: {:?}", cli.engine.as_deref());
     
-    KvsServer::listen_and_serve_requests(ip)
+    KvsServer::listen_and_serve_requests(ip);
     
-    // Ok(())
+    Ok(())
     // println!("addr: {:?}", ip);
     // println!("engine: {:?}", cli.engine.as_deref());
 

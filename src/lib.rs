@@ -21,8 +21,8 @@ impl KvsClient {
     //TODO! IP address parsing
     //TODO! Send operation to KvsServer at a certain IP
     //TODO! Receive response and proprogate to CLI (success or error)
-    pub fn connect_and_send_request(ip_string: String, message: String) -> Result<[u8;1024]> {
-        let _verified_ip_address = parse_ip(&ip_string)?;
+    pub fn connect_and_send_request(ip_string: String, message: String) -> Result<String> {
+        // let _verified_ip_address = parse_ip(&ip_string)?;
 
         let mut stream = TcpStream::connect(ip_string)?;
 
@@ -32,7 +32,9 @@ impl KvsClient {
 
         stream.read(&mut buffer)?;
 
-        Ok(buffer)
+        let string_response = String::from_utf8(buffer[..].to_vec())?;
+
+        Ok(string_response)
     }
 
 }
@@ -45,17 +47,15 @@ impl KvsServer{
 
         let path = PathBuf::from("");
 
-        let _verified_ip_address = parse_ip(&ip_string)?;
-
         let listener = TcpListener::bind(ip_string)?;
 
         for stream in listener.incoming() {
             
             let kv_store = KvStore::open(&path)?; //Q: What happens if two simultaneous connections occur? Race?
             
-            let unwrapp_stream = stream?;
+            let unwrapped_stream = stream?;
 
-            KvsServer::handle_request(unwrapp_stream, kv_store)?
+            KvsServer::handle_request(unwrapped_stream, kv_store)?
         }
 
         Ok(())
@@ -69,7 +69,7 @@ impl KvsServer{
         stream.read(&mut buffer)?;
 
         //Split arguments by space
-        let arguments:Vec<&[u8]> = buffer.split(|byte| &[*byte] == b" ").collect();
+        let arguments:Vec<&[u8]> = buffer.split(|byte| &[*byte] == b"\n").collect();
 
         //TODO! translate bytes in the buffer to commands
         match arguments.get(0) {
@@ -162,18 +162,19 @@ impl KvsServer{
 
 }
 
-//NOTE! Utility function for connect method
-fn parse_ip(ip_string: &String) -> Result<IpAddr> {
-    if ip_string.as_bytes().len() < 33 { //NOTE: Is there a better / more succint way to determine V4 vs. V6?
-        Ipv4Addr::from_str(&ip_string)
-            .map_err(|err| {err.into()})
-            .map(|ipv4| {IpAddr::V4(ipv4)})
-    } else {
-        Ipv6Addr::from_str(&ip_string)
-            .map_err(|err| {err.into()})
-            .map(|ipv6| {IpAddr::V6(ipv6)})
-    }
-}
+// //NOTE! Deprecated since TcpStream::connect has this handling already
+// fn parse_ip(ip_string: &String) -> Result<IpAddr> {
+//     println!("Inside parse ip");
+//     if ip_string.as_bytes().len() < 33 { //NOTE: Is there a better / more succint way to determine V4 vs. V6?
+//         Ipv4Addr::from_str(&ip_string)
+//             .map_err(|err| {err.into()})
+//             .map(|ipv4| {IpAddr::V4(ipv4)})
+//     } else {
+//         Ipv6Addr::from_str(&ip_string)
+//             .map_err(|err| {err.into()})
+//             .map(|ipv6| {IpAddr::V6(ipv6)})
+//     }
+// }
 
 
 pub trait KvsEngine{

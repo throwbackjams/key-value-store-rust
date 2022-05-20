@@ -82,14 +82,16 @@ fn main() -> Result<()> {
             // let result = in_mem_kv.set(key, value);
             
             info!("IP Address target: {:?}", addr);
-            let message = String::from(format!("SET {} {}", key, value));
+            let message = String::from(format!("SET\n{}\n{}\n", key, value));
             info!("Message request sent: {}", message);
 
-            let response = KvsClient::connect_and_send_request(addr, message)?;
+            let string_response = KvsClient::connect_and_send_request(addr, message)?;
 
-            let string_response = String::from_utf8_lossy(&response);
+            // let string_response = String::from_utf8_lossy(&buffer_response[..]);
 
-            info!("Response: {:?}", string_response);
+            let trimmed_response = string_response.trim_start_matches('+');
+
+            info!("Response: {}", trimmed_response);
 
             // match result {
             //     Ok(()) => process::exit(0),
@@ -114,14 +116,14 @@ fn main() -> Result<()> {
             //  });
 
             info!("IP Address target: {:?}", addr);
-            let message = String::from(format!("GET {}", key));
+            let message = String::from(format!("GET\r\n{}\r\n", key));
             info!("Message request sent: {}", message);
 
             let response = KvsClient::connect_and_send_request(addr, message)?;
 
-            let string_response = String::from_utf8_lossy(&response);
-
-            info!("Response: {:?}", string_response);
+            
+            // info!("Response: {}", response.trim());
+            // println!("Response_kvs-client: {}", response.trim());
 
             // match result {
             //     Ok(Some(value)) => println!("{}", value),
@@ -142,14 +144,12 @@ fn main() -> Result<()> {
             // println!("CLI remove command - result: {:?}", result);
 
             info!("IP Address target: {:?}", addr);
-            let message = String::from(format!("RM {}", key));
+            let message = String::from(format!("RM\r\n{}\r\n", key));
             info!("Message request sent: {}", message);
 
             let response = KvsClient::connect_and_send_request(addr, message)?;
 
-            let string_response = String::from_utf8_lossy(&response);
-
-            info!("Response: {:?}", string_response);
+            info!("Response: {:?}", response);
 
             process::exit(0);
         }
