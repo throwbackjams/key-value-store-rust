@@ -9,6 +9,9 @@ use std::path::PathBuf;
 use std::net::{self, IpAddr, TcpListener, TcpStream, Ipv4Addr, Ipv6Addr, AddrParseError};
 use std::str::FromStr;
 
+use tracing::{info, debug};
+use tracing_subscriber;
+
 const GET: &[u8] = b"GET";
 const SET: &[u8] = b"SET";
 const RM: &[u8] = b"RM";
@@ -63,6 +66,10 @@ impl KvsServer{
 
     //TODO! Perform operation by calling KvsEngine
     fn handle_request(mut stream: TcpStream, mut kv_store: KvStore ) -> Result<()> {
+
+        let subscriber = tracing_subscriber::FmtSubscriber::new();
+
+        info!("Connection initiated");
         
         let mut buffer = [0; 1024];
 
@@ -74,6 +81,7 @@ impl KvsServer{
         //TODO! translate bytes in the buffer to commands
         match arguments.get(0) {
             Some(&GET) => {
+                info!("Processing GET Request");
                 //decode key
                 let key_bytes = arguments
                             .get(1)
@@ -88,6 +96,8 @@ impl KvsServer{
                 //Handle get request (send response back)
                 let result = kv_store.get(key)?;
 
+                info!("Get result: {:?}", result);
+
                 //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
                 //Send result back (encapsulate in function?)
                 let response = format!("+{}\r\n", result.unwrap_or("None".to_string()));
@@ -97,6 +107,7 @@ impl KvsServer{
                 
             },
             Some(&SET) => {
+                info!("Processing SET Request");
                 //decode key and value
                 let key_bytes = arguments.get(1).ok_or(KvsError::CommandError("Command unrecognized".to_string()));
                 let value_bytes = arguments.get(2).ok_or(KvsError::CommandError("Command unrecognized".to_string()));
@@ -127,6 +138,7 @@ impl KvsServer{
 
             },
             Some(&RM) => {
+                info!("Processing Remove Request");
                 //decode key
                 let key_bytes = arguments.get(1).ok_or(KvsError::CommandError("Command unrecognized".to_string()));
                 //Handle remove request

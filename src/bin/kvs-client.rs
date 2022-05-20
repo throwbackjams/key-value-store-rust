@@ -116,14 +116,14 @@ fn main() -> Result<()> {
             //  });
 
             info!("IP Address target: {:?}", addr);
-            let message = String::from(format!("GET\r\n{}\r\n", key));
+            let message = String::from(format!("GET\n{}\n", key));
             info!("Message request sent: {}", message);
 
-            let response = KvsClient::connect_and_send_request(addr, message)?;
+            let string_response = KvsClient::connect_and_send_request(addr, message)?;
 
-            
-            // info!("Response: {}", response.trim());
-            // println!("Response_kvs-client: {}", response.trim());
+            let trimmed_response = string_response.trim_start_matches('+');
+
+            info!("Response: {}", trimmed_response);
 
             // match result {
             //     Ok(Some(value)) => println!("{}", value),
@@ -144,12 +144,14 @@ fn main() -> Result<()> {
             // println!("CLI remove command - result: {:?}", result);
 
             info!("IP Address target: {:?}", addr);
-            let message = String::from(format!("RM\r\n{}\r\n", key));
+            let message = String::from(format!("RM\n{}\n", key));
             info!("Message request sent: {}", message);
 
-            let response = KvsClient::connect_and_send_request(addr, message)?;
+            let string_response = KvsClient::connect_and_send_request(addr, message)?;
 
-            info!("Response: {:?}", response);
+            let trimmed_response = string_response.trim_start_matches('+');
+
+            info!("Response: {}", trimmed_response);
 
             process::exit(0);
         }
