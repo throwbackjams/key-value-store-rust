@@ -1,6 +1,6 @@
 use clap::Parser;
 use kvs::{Result, KvsServer};
-use tracing::{info, trace};
+use tracing::{info, trace, error};
 use tracing_subscriber;
 
 
@@ -34,8 +34,12 @@ fn main() -> Result<()> {
     };
 
     info!("Beginning Server listening on IP Address:Port: {}", ip);
-    info!("Running kvs-server version: {}", env!("CARGO_PKG_VERSION"));
+    info!("Running kvs-server CARGO_PKG_VERSION: {}", env!("CARGO_PKG_VERSION"));
     info!("Engine used: {:?}", cli.engine.as_deref());
+
+    eprintln!("Beginning Server listening on IP Address:Port: {}", ip);
+    eprintln!("Running kvs-server CARGO_PKG_VERSION: {}", env!("CARGO_PKG_VERSION"));
+    eprintln!("Engine used: {:?}", cli.engine.as_deref());
     
     KvsServer::listen_and_serve_requests(ip);
     

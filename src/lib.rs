@@ -15,7 +15,7 @@ use tracing_subscriber;
 const GET: &[u8] = b"GET";
 const SET: &[u8] = b"SET";
 const RM: &[u8] = b"RM";
-const OK_RESPONSE: &[u8] = b"+OK\r\n";
+const OK_RESPONSE: &[u8] = b"+OK\n";
 
 pub struct KvsClient{}
 
@@ -35,7 +35,11 @@ impl KvsClient {
 
         stream.read(&mut buffer)?;
 
-        let string_response = String::from_utf8(buffer[..].to_vec())?;
+        let byte_vector: Vec<&[u8]> = buffer.split(|byte| &[*byte] == b"\n").collect();
+
+        let content = byte_vector.get(0).ok_or(KvsError::CommandError("Command unrecognized".to_string()))?;
+
+        let string_response = String::from_utf8(content[..].to_vec())?;
 
         Ok(string_response)
     }
@@ -100,7 +104,7 @@ impl KvsServer{
 
                 //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
                 //Send result back (encapsulate in function?)
-                let response = format!("+{}\r\n", result.unwrap_or("None".to_string()));
+                let response = format!("+{}\n", result.unwrap_or("Key not found".to_string()));
 
                 stream.write(response.as_bytes())?;
                 stream.flush()?;
@@ -149,16 +153,17 @@ impl KvsServer{
 
                 let key = String::from_utf8(key_bytes.unwrap().to_vec())?;
 
-                let _result = kv_store.remove(key)?;
+                let result = kv_store.remove(key);
 
-                //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
+                //NOTE! If the result is err, then send back Key not found?
                 //Send result back (encapsulate in function?)
-                let response = OK_RESPONSE;
 
-                stream.write(response)?;
-                stream.flush()?;
-
-
+                if let Err(error) = result {
+                    let result = "Key not found".to_string();
+                    let response = format!("+{}\n", result);
+                    stream.write(response.as_bytes())?;
+                    stream.flush()?;
+                }
             },
             _ => {
                 //return error
