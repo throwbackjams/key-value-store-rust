@@ -33,15 +33,22 @@ fn main() -> Result<()> {
         None => ip = String::from("127.0.0.1:4000"),
     };
 
+    let mut engine: String;
+    
+    match cli.engine {
+        Some(eng) => engine = eng,
+        None => engine = "kvs".to_string(),
+    };
+
     info!("Beginning Server listening on IP Address:Port: {}", ip);
     info!("Running kvs-server CARGO_PKG_VERSION: {}", env!("CARGO_PKG_VERSION"));
-    info!("Engine used: {:?}", cli.engine.as_deref());
+    info!("Engine used: {:?}", engine);
 
     eprintln!("Beginning Server listening on IP Address:Port: {}", ip);
     eprintln!("Running kvs-server CARGO_PKG_VERSION: {}", env!("CARGO_PKG_VERSION"));
-    eprintln!("Engine used: {:?}", cli.engine.as_deref());
+    eprintln!("Engine used: {:?}", engine);
     
-    KvsServer::listen_and_serve_requests(ip);
+    KvsServer::route_request(ip, engine)?;
     
     Ok(())
     // println!("addr: {:?}", ip);

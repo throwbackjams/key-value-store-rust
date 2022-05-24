@@ -3,11 +3,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
-use std::fs::{self, File};
+use std::fs::{self, File, metadata};
 use std::io::{self, Read, Write, BufWriter};
 use std::path::PathBuf;
 use std::net::{self, IpAddr, TcpListener, TcpStream, Ipv4Addr, Ipv6Addr, AddrParseError};
 use std::str::FromStr;
+use sled::{Db, open, Error};
 
 use tracing::{info, debug};
 use tracing_subscriber;
@@ -16,6 +17,10 @@ const GET: &[u8] = b"GET";
 const SET: &[u8] = b"SET";
 const RM: &[u8] = b"RM";
 const OK_RESPONSE: &[u8] = b"+OK\n";
+const KVS_CODE: &[u8] = b"kvs";
+const SLED_CODE: &[u8] = b"sled";
+const KVS_FILE_NAME: &str = "log.txt";
+const SLED_FILE_NAME: &str = "sled_db";
 
 pub struct KvsClient{}
 
@@ -50,13 +55,48 @@ pub struct KvsServer{}
 
 impl KvsServer{
     
-    pub fn listen_and_serve_requests(ip_string: String) -> Result<()>{
+    pub fn route_request(ip_string: String, engine: String) -> Result<()> {
+
+        match engine.as_bytes() {
+            KVS_CODE => KvsServer::listen_and_serve_requests_kvs(ip_string, engine),
+            SLED_CODE => KvsServer::listen_and_serve_requests_sled(ip_string, engine),
+            _ => return Err(KvsError::CommandError("Engine not found".to_string()))
+        }
+
+    }
+
+    fn listen_and_serve_requests_sled(ip_string: String, engine: String) -> Result<()> {
+
+        let listener = TcpListener::bind(ip_string)?;
+
+        for stream in listener.incoming() {
+
+            KvsServer::verify_database_type(engine.clone())?;
+            
+            let sled_db = SledKvsEngine::open(SLED_FILE_NAME)?;
+            
+            let sled_engine = SledKvsEngine { 
+                directory_path: PathBuf::from(SLED_FILE_NAME),
+                sled_db: sled_db,
+            };
+            
+            let unwrapped_stream = stream?;
+            KvsServer::handle_request(unwrapped_stream, sled_engine)?
+
+        }
+
+        Ok(())
+    }
+
+    fn listen_and_serve_requests_kvs(ip_string: String, engine: String) -> Result<()>{
 
         let path = PathBuf::from("");
 
         let listener = TcpListener::bind(ip_string)?;
 
         for stream in listener.incoming() {
+
+            KvsServer::verify_database_type(engine.clone())?;
             
             let kv_store = KvStore::open(&path)?; //Q: What happens if two simultaneous connections occur? Race?
             
@@ -68,8 +108,29 @@ impl KvsServer{
         Ok(())
     }
 
+    fn verify_database_type(engine: String) -> Result<()> {
+        let sled_exists = fs::metadata(SLED_FILE_NAME);
+        let kvs_exists = fs::metadata(KVS_FILE_NAME);
+
+        // info!("sled_exists: {:?}", sled_exists);
+        // info!("kvs_exists: {:?}", kvs_exists);
+
+        if sled_exists.is_ok() && engine.as_bytes() == KVS_CODE {
+            // info!("Cannot use kvs engine when sled db exists");
+            return Err(KvsError::CommandError("Engine mismatch. Cannot use Kvs Engine for existing Sled Engine".to_string()))
+        }
+
+        if kvs_exists.is_ok() && engine.as_bytes() == SLED_CODE {
+            // info!("Cannot use sled engine when kvs db exists");
+            return Err(KvsError::CommandError("Engine mismatch. Cannot use Sled Engine for existing Kvs Engine".to_string()))
+        }
+
+        Ok(())
+
+    }
+
     //TODO! Perform operation by calling KvsEngine
-    fn handle_request(mut stream: TcpStream, mut kv_store: KvStore ) -> Result<()> {
+    fn handle_request(mut stream: TcpStream, mut engine: impl KvsEngine ) -> Result<()> {
 
         let subscriber = tracing_subscriber::FmtSubscriber::new();
 
@@ -98,7 +159,7 @@ impl KvsServer{
                 let key = String::from_utf8(key_bytes.unwrap().to_vec())?; //NOTE! Is there a better way to handle this?
 
                 //Handle get request (send response back)
-                let result = kv_store.get(key)?;
+                let result = engine.get(key)?;
 
                 info!("Get result: {:?}", result);
 
@@ -129,7 +190,7 @@ impl KvsServer{
                 let key = String::from_utf8(key_bytes.unwrap().to_vec())?;
                 let value = String::from_utf8(value_bytes.unwrap().to_vec())?;
 
-                let _result = kv_store.set(key, value)?;
+                let _result = engine.set(key, value)?;
 
                 //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
                 //Send result back (encapsulate in function?)
@@ -153,7 +214,7 @@ impl KvsServer{
 
                 let key = String::from_utf8(key_bytes.unwrap().to_vec())?;
 
-                let result = kv_store.remove(key);
+                let result = engine.remove(key);
 
                 //NOTE! If the result is err, then send back Key not found?
                 //Send result back (encapsulate in function?)
@@ -193,23 +254,6 @@ impl KvsServer{
 //     }
 // }
 
-
-pub trait KvsEngine{
-    fn set(&mut self, key: String, value: String) -> Result<()>;
-
-    fn get(&mut self, key: String) -> Result<Option<String>>;
-
-    fn remove(&mut self, key: String) -> Result<()>;
-}
-
-///Primary struct is a KvStore containing a single HashMap
-#[derive(Debug)]
-pub struct KvStore {
-    pub kv: HashMap<String, usize>, //Change to store log pointer
-    pub directory_path: PathBuf,
-    pub log_pointer: usize,
-}
-
 ///Result wrapper to consolidate program errors
 pub type Result<T> = std::result::Result<T, KvsError>;
 
@@ -221,7 +265,7 @@ pub enum KvsError {
     Store(String),
     IpAddrParse(AddrParseError),
     CommandError(String),
-    //TODO! Add IP Parse error and server error heres
+    SledError(sled::Error),
 }
 
 impl fmt::Display for KvsError {
@@ -232,6 +276,7 @@ impl fmt::Display for KvsError {
             KvsError::Store(err) => write!(f, "Store error {}", err),
             KvsError::IpAddrParse(err) => write!(f, "IP error {}", err),
             KvsError::CommandError(err) => write!(f, "Command error: {}", err),
+            KvsError::SledError(err) => write!(f, "Sled error: {}", err),
         }
     }
 }
@@ -260,6 +305,28 @@ impl From<std::string::FromUtf8Error> for KvsError {
     }
 }
 
+impl From<sled::Error> for KvsError {
+    fn from(err: sled::Error) -> KvsError {
+        KvsError::SledError(err)
+    }
+}
+
+pub trait KvsEngine{
+    fn set(&mut self, key: String, value: String) -> Result<()>;
+
+    fn get(&mut self, key: String) -> Result<Option<String>>;
+
+    fn remove(&mut self, key: String) -> Result<()>;
+}
+
+///Primary struct is a KvStore containing a single HashMap
+#[derive(Debug)]
+pub struct KvStore {
+    pub kv: HashMap<String, usize>, //Change to store log pointer
+    pub directory_path: PathBuf,
+    pub log_pointer: usize,
+}
+
 impl KvStore {
     ///Create a hashmap
     pub fn new(path: PathBuf) -> KvStore {
@@ -277,7 +344,7 @@ impl KvStore {
         let directory: PathBuf = path.into();
         fs::create_dir_all(&directory)?;
 
-        let full_path = directory.join("log.txt");
+        let full_path = directory.join(KVS_FILE_NAME);
         // println!("full path: {:?}", full_path);
 
         let file = get_file(full_path.clone())?;
@@ -425,6 +492,54 @@ impl KvsEngine for KvStore {
         }
     }
 }
+
+pub struct SledKvsEngine {
+    pub directory_path: PathBuf,
+    pub sled_db: sled::Db,
+}
+
+impl SledKvsEngine {
+    fn open(name: &str) -> Result<sled::Db> {
+        sled::open(name).map_err(|err| err.into())
+    }
+}
+
+impl KvsEngine for SledKvsEngine {
+    //NOTE! Import sled crate and implement methods here
+    fn set(&mut self, key: String, value: String) -> Result<()> {
+        self.sled_db.insert(key.as_bytes(), value.as_bytes());
+
+        Ok(())
+    }
+
+    fn get(&mut self, key: String) -> Result<Option<String>>{
+        let ivec_value = self.sled_db.get(key.as_bytes())?; //TODO! Better error handling for option
+
+        if ivec_value.is_none() {
+            return Ok(Some("Key not found".to_string()))
+        };
+
+        //TODO! Is there a better way to convert Ivecs into Strings?
+        let vec_bytes: Vec<u8> = ivec_value.unwrap().into_iter().map(|byte| *byte ).collect();
+
+        let string = String::from_utf8_lossy(&vec_bytes);
+
+        Ok(Some(string.to_string()))
+
+        // Ok(Some(sled::IVec::from(ivec_value.unwrap()))) 
+    }
+
+    fn remove(&mut self, key: String) -> Result<()>{
+        let result = self.sled_db.remove(key.as_bytes())?;
+
+        if result.is_none() {
+            return Err(KvsError::Store("Key not found".to_owned()));
+        }
+
+        Ok(())
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Command {
