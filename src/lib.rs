@@ -17,8 +17,8 @@ const GET: &[u8] = b"GET";
 const SET: &[u8] = b"SET";
 const RM: &[u8] = b"RM";
 const OK_RESPONSE: &[u8] = b"+OK\n";
-const KVS_CODE: &[u8] = b"kvs";
-const SLED_CODE: &[u8] = b"sled";
+pub const KVS_CODE: &[u8] = b"kvs";
+pub const SLED_CODE: &[u8] = b"sled";
 const KVS_FILE_NAME: &str = "log.txt";
 const SLED_FILE_NAME: &str = "sled_db";
 

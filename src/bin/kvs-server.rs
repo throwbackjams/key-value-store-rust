@@ -1,18 +1,19 @@
 use clap::Parser;
-use kvs::{Result, KvsServer};
+use kvs::{Result, KvsServer, KVS_CODE};
 use tracing::{info, trace, error};
 use tracing_subscriber;
 
+const DEFAULT_IP_ADDRESS: &str = "127.0.0.1:4000";
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
 struct Cli{
     ///Set the IP Address at which the server will listen
-    #[clap(short, long)]
-    addr: Option<String>,
+    #[clap(short, long, default_value_t = String::from(DEFAULT_IP_ADDRESS).to_string())]
+    addr: String,
     ///Customize the engine used. Either kvs (built-in) or sled(plug-in)
-    #[clap(short, long)]
-    engine: Option<String>,
+    #[clap(short, long, default_value_t = String::from_utf8_lossy(KVS_CODE).to_string())]
+    engine: String,
 }
 
 fn main() -> Result<()> {
@@ -26,33 +27,17 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    let mut ip: String;
+    info!("Beginning Server listening on IP Address:Port: {}", cli.addr);
+    info!("Running kvs-server version: {}", env!("CARGO_PKG_VERSION"));
+    info!("Engine used: {:?}", cli.engine);
 
-    match cli.addr {
-        Some(addr) => ip = addr,
-        None => ip = String::from("127.0.0.1:4000"),
-    };
-
-    let mut engine: String;
-    
-    match cli.engine {
-        Some(eng) => engine = eng,
-        None => engine = "kvs".to_string(),
-    };
-
-    info!("Beginning Server listening on IP Address:Port: {}", ip);
-    info!("Running kvs-server CARGO_PKG_VERSION: {}", env!("CARGO_PKG_VERSION"));
-    info!("Engine used: {:?}", engine);
-
-    eprintln!("Beginning Server listening on IP Address:Port: {}", ip);
+    eprintln!("Beginning Server listening on IP Address:Port: {}", cli.addr);
     eprintln!("Running kvs-server CARGO_PKG_VERSION: {}", env!("CARGO_PKG_VERSION"));
-    eprintln!("Engine used: {:?}", engine);
+    eprintln!("Engine used: {:?}", cli.engine);
     
-    KvsServer::route_request(ip, engine)?;
+    KvsServer::route_request(cli.addr, cli.engine)?;
     
     Ok(())
-    // println!("addr: {:?}", ip);
-    // println!("engine: {:?}", cli.engine.as_deref());
 
 }
 
