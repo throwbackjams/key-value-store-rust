@@ -3,6 +3,7 @@
 use crate::error::{KvsError, Result};
 use std::io::{ Read, Write};
 use std::net::{TcpStream};
+use crate::utils::BUFFER_LENGTH;
 
 pub struct KvsClient{}
 
@@ -14,7 +15,7 @@ impl KvsClient {
 
         stream.write(message.as_bytes())?;
 
-        let mut buffer = [0; 1024];
+        let mut buffer = [0; BUFFER_LENGTH];
 
         stream.read(&mut buffer)?;
 

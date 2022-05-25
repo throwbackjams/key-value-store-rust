@@ -1,4 +1,4 @@
-use crate::utils::{ SLED_FILE_NAME, KVS_FILE_NAME, SLED_CODE, KVS_CODE, OK_RESPONSE, GET, SET, RM };
+use crate::utils::{ SLED_FILE_NAME, KVS_FILE_NAME, SLED_CODE, KVS_CODE, OK_RESPONSE, GET, SET, RM, BUFFER_LENGTH };
 use crate::error::{ KvsError, Result };
 use crate::engines::{ SledKvsEngine, KvStore, KvsEngine };
 use std::net::{ TcpListener, TcpStream };
@@ -93,7 +93,7 @@ impl KvsServer{
 
         info!("Connection initiated");
         
-        let mut buffer = [0; 1024];
+        let mut buffer = [0; BUFFER_LENGTH];
 
         stream.read(&mut buffer)?;
 
