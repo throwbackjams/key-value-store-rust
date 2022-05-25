@@ -1,8 +1,9 @@
 use clap::Parser;
-use kvs::{Result, KvsClient};
+use kvs::client::KvsClient;
+use kvs::error::Result;
 use std::process;
-use tracing::{info};
-use tracing_subscriber;
+// use tracing::{info};
+// use tracing_subscriber;
 
 const DEFAULT_IP_ADDRESS: &str = "127.0.0.1:4000";
 
@@ -55,10 +56,10 @@ fn main() -> Result<()> {
 
     // println!("In memory KV: {:?}", in_mem_kv.kv);
 
-    let subscriber = tracing_subscriber::FmtSubscriber::new();
+    // let subscriber = tracing_subscriber::FmtSubscriber::new();
 
-    let _result = tracing::subscriber::set_global_default(subscriber)
-    .map_err(|_err| eprintln!("Unable to set global default subscriber"));
+    // let _result = tracing::subscriber::set_global_default(subscriber)
+    // .map_err(|_err| eprintln!("Unable to set global default subscriber"));
 
     let cli = Cli::parse();
 
@@ -89,7 +90,7 @@ fn main() -> Result<()> {
 
             // let string_response = String::from_utf8_lossy(&buffer_response[..]);
 
-            let trimmed_response = string_response.trim_start_matches('+');
+            let _trimmed_response = string_response.trim_start_matches('+');
 
             // info!("Response: {}", trimmed_response);
 

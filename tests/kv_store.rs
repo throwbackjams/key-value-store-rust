@@ -1,4 +1,5 @@
-use kvs::{KvStore, KvsEngine, Result};
+use kvs::engines::{ KvStore, KvsEngine };
+use kvs::error::Result;
 use tempfile::TempDir;
 use walkdir::WalkDir;
 
@@ -106,7 +107,7 @@ fn compaction() -> Result<()> {
         }
 
         // reopen and check content.
-        let mut store = KvStore::open(temp_dir.path())?;
+        let store = KvStore::open(temp_dir.path())?;
 
         let new_size = dir_size();
         if new_size > current_size {

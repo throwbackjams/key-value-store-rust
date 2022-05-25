@@ -1,7 +1,9 @@
 use clap::Parser;
-use kvs::{Result, KvsServer, KVS_CODE};
-use tracing::{info, trace, error};
+use kvs::server::KvsServer;
+use kvs::error::Result;
+use tracing::{ info, trace };
 use tracing_subscriber;
+use kvs::utils::KVS_CODE;
 
 const DEFAULT_IP_ADDRESS: &str = "127.0.0.1:4000";
 
