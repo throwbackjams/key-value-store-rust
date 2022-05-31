@@ -1,6 +1,7 @@
 use crate::utils::{ SLED_FILE_NAME, KVS_FILE_NAME, SLED_CODE, KVS_CODE, OK_RESPONSE, GET, SET, RM, BUFFER_LENGTH };
 use crate::error::{ KvsError, Result };
 use crate::engines::{ SledKvsEngine, KvStore, KvsEngine };
+use crate::thread_pool::*;
 use std::net::{ TcpListener, TcpStream };
 use std::path::PathBuf;
 use std::fs;
@@ -53,13 +54,20 @@ impl KvsServer{
 
         for stream in listener.incoming() {
 
-            KvsServer::verify_database_type(engine.clone())?;
-            
-            let kv_store = KvStore::open(&path)?; //Q: What happens if two simultaneous connections occur? Race?
-            
-            let unwrapped_stream = stream?;
+            let naive_thread_pool = NaiveThreadPool::new(10)?;
+            let engine_clone = engine.clone();
+            let path_clone = path.clone();
 
-            KvsServer::handle_request(unwrapped_stream, kv_store)?
+            naive_thread_pool.spawn(move || {
+                KvsServer::verify_database_type(engine_clone).expect("Verify database error");
+                
+                let kv_store = KvStore::open(&path_clone).expect("Error opening KvStore"); //TODO! How to implement error propogation within a thread?
+                
+                let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
+    
+                KvsServer::handle_request(unwrapped_stream, kv_store).expect("KvStore handle request error");
+            });
+
         }
 
         Ok(())
