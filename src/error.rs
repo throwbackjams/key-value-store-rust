@@ -1,22 +1,24 @@
 use std::fmt;
 use std::net::{ self, AddrParseError };
 use std::io;
+use std::sync::PoisonError;
 
 ///Result wrapper to consolidate program errors
 pub type Result<T> = std::result::Result<T, KvsError>;
 
 ///Custom errors for the program
 #[derive(Debug)]
-pub enum KvsError {
+pub enum KvsError{
     Io(io::Error),
     Serde(serde_json::Error),
     Store(String),
     IpAddrParse(AddrParseError),
     CommandError(String),
     SledError(sled::Error),
+    // SyncError(PoisonError<T>),
 }
 
-impl fmt::Display for KvsError {
+impl fmt::Display for KvsError{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             KvsError::Io(err) => write!(f, "IO error: {}", err),
@@ -25,6 +27,7 @@ impl fmt::Display for KvsError {
             KvsError::IpAddrParse(err) => write!(f, "IP error {}", err),
             KvsError::CommandError(err) => write!(f, "Command error: {}", err),
             KvsError::SledError(err) => write!(f, "Sled error: {}", err),
+            // KvsError::SyncError(err) => write!(f, "Sync Error: {}", err),
         }
     }
 }
@@ -53,8 +56,14 @@ impl From<std::string::FromUtf8Error> for KvsError {
     }
 }
 
-impl From<sled::Error> for KvsError {
+impl From<sled::Error> for KvsError{
     fn from(err: sled::Error) -> KvsError {
         KvsError::SledError(err)
     }
 }
+
+// impl <T> From<sync::PoisonError<T>> for KvsError<T> {
+//     fn from(err: PoisonError<T>) -> KvsError<T> {
+//         KvsError::SyncError(err)
+//     }
+// }

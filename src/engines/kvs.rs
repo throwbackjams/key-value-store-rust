@@ -7,21 +7,22 @@ use std::fs::{ self, File };
 use crate::error::{ KvsError, Result };
 use serde::{ Deserialize, Serialize };
 use super::KvsEngine;
+use std::sync::{mpsc, Arc, Mutex};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KvStore {
-    pub kv: HashMap<String, usize>, //Change to store log pointer
+    pub kv: Arc<Mutex<HashMap<String, usize>>>,
     pub directory_path: PathBuf,
-    pub log_pointer: usize,
+    pub log_pointer: Arc<Mutex<usize>>,
 }
 
 impl KvStore {
     ///Create a hashmap
     pub fn new(path: PathBuf) -> KvStore {
         KvStore {
-            kv: HashMap::new(),
+            kv: Arc::new(Mutex::new(HashMap::new())),
             directory_path: path,
-            log_pointer: 0,
+            log_pointer: Arc::new(Mutex::new(0)),
         }
     }
 
@@ -92,8 +93,12 @@ impl KvStore {
 impl KvsEngine for KvStore {
 
     ///Set the value of a string key to a string. Return an error if the value is not written successfully.
-    fn set(&mut self, key: String, value: String) -> Result<()> {
-        self.kv.insert(key.clone(), self.log_pointer);
+    fn set(&self, key: String, value: String) -> Result<()> {
+        
+        let mut locked_kv = self.kv.lock().expect("Set: lock mutex of hashmap failed"); //TODO! Better error handling for PoisonError. A simple From<PoisonError<T>> to KvsError doesn't work
+        let mut locked_log_pointer = self.log_pointer.lock().expect("Set: lock mutex of log pointer failed"); //TODO! Better error handling for PoisonError. A simple From<PoisonError<T>> to KvsError doesn't work
+        
+        locked_kv.insert(key.clone(), *locked_log_pointer);
 
         let command = Command::Set { key, value };
 
@@ -108,14 +113,18 @@ impl KvsEngine for KvStore {
 
         // println!("Set write complete");
 
-        self.log_pointer += 1;
+        *locked_log_pointer += 1;
 
         Ok(())
     }
 
     ///Remove a given key. Return an error if the key does not exist or is not removed successfully.
-    fn remove(&mut self, key: String) -> Result<()> {
-        let result = self.kv.remove(&key);
+    fn remove(&self, key: String) -> Result<()> {
+        
+        let mut locked_kv = self.kv.lock().expect("Set: lock mutex of hashmap failed"); //TODO! Better error handling for PoisonError. A simple From<PoisonError<T>> to KvsError doesn't work
+        let mut locked_log_pointer = self.log_pointer.lock().expect("Set: lock mutex of log pointer failed"); //TODO! Better error handling for PoisonError. A simple From<PoisonError<T>> to KvsError doesn't work
+        
+        let result = locked_kv.remove(&key);
 
         // println!("Remove result: {:?}", result.clone());
 
@@ -137,18 +146,21 @@ impl KvsEngine for KvStore {
         serde_json::to_writer(file, &command)?;
         // println!("Remove write complete");
 
-        self.log_pointer += 1;
+        *locked_log_pointer += 1;
 
         Ok(())
     }
 
     ///Get the string value of a string key. If the key does not exist, return None. Return an error if the value is not read successfully.
-    fn get(&mut self, key: String) -> Result<Option<String>> {
-        if self.kv.get(&key).cloned().is_none() {
+    fn get(&self, key: String) -> Result<Option<String>> {
+
+        let locked_kv = self.kv.lock().expect("Set: lock mutex of hashmap failed"); //TODO! Better error handling for PoisonError. A simple From<PoisonError<T>> to KvsError doesn't work
+
+        if locked_kv.get(&key).cloned().is_none() {
             return Ok(None);
         }
 
-        let log_pointer = self.kv.get(&key).unwrap();
+        let log_pointer = locked_kv.get(&key).unwrap();
 
         let full_path = self.get_file_path();
         // println!("set remove full path: {:?}", full_path);
@@ -158,6 +170,7 @@ impl KvsEngine for KvStore {
 
         let file = get_file(full_path)?;
 
+        //TODO! Instead of deserializing every command on get (very inefficient), use seek and command length to jump right to the right spot
         let deserialized_commands: Vec<Command> = deserialize_commands_from_file(file);
 
         // println!("Deserialized Commands from get: {:?}", deserialized_commands);
@@ -207,15 +220,20 @@ fn deserialize_commands_from_file(file: File) -> Vec<Command> {
 
 ///Build log pointers for active data in memory
 fn build_log_pointers(in_mem_kv: &mut KvStore, deserialized_commands: Vec<Command>) {
+    
+    let mut locked_kv = in_mem_kv.kv.lock().expect("Set: lock mutex of hashmap failed"); //TODO! Better error handling for PoisonError. A simple From<PoisonError<T>> to KvsError doesn't work
+    let mut locked_log_pointer = in_mem_kv.log_pointer.lock().expect("Set: lock mutex of log pointer failed"); //TODO! Better error handling for PoisonError. A simple From<PoisonError<T>> to KvsError doesn't work
+                
+    
     for command in deserialized_commands.iter() {
         match command {
             Command::Set { key, value: _ } => {
-                in_mem_kv.kv.insert(key.clone(), in_mem_kv.log_pointer);
-                in_mem_kv.log_pointer += 1;
+                locked_kv.insert(key.clone(), *locked_log_pointer);
+                *locked_log_pointer += 1;
             }
             Command::Rm { key } => {
-                in_mem_kv.kv.remove(key);
-                in_mem_kv.log_pointer += 1;
+                locked_kv.remove(key);
+                *locked_log_pointer += 1;
             }
         };
     }
@@ -235,23 +253,25 @@ fn perform_compaction(
     //if exits and positon i is equal to hashmap pointer value, then copy to new vec<Command> and set in memory pointer value as (current value minus the removals so far)
     //else increment removal counter by one
     //(Note: if does not exist or exists but position i is less than the hashmap pointer value, then disregard for removal)
+    let mut locked_kv = in_mem_kv.kv.lock().expect("Set: lock mutex of hashmap failed"); //TODO! Better error handling for PoisonError. A simple From<PoisonError<T>> to KvsError doesn't work
+    let mut locked_log_pointer = in_mem_kv.log_pointer.lock().expect("Set: lock mutex of log pointer failed"); //TODO! Better error handling for PoisonError. A simple From<PoisonError<T>> to KvsError doesn't work
 
     for (i, command) in deserialized_commands.iter().enumerate() {
+        
         match command {
             Command::Rm { key: _ } => continue,
             Command::Set { key, value: _ } => {
-                let pointer = in_mem_kv.kv.get(key);
+                let pointer = locked_kv.get(key);
 
                 if pointer != None && *pointer.unwrap() == i {
                     new_disc.push(command.to_owned());
-                    in_mem_kv.kv.insert(key.to_string(), i - removals);
+                    locked_kv.insert(key.to_string(), i - removals);
                 } else {
                     removals += 1;
                 }
             }
         };
     }
-
     //reset pointer value
-    in_mem_kv.log_pointer = new_disc.len();
+    *locked_log_pointer = new_disc.len();
 }
