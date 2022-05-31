@@ -1,11 +1,10 @@
-use criterion::{black_box, criterion_group, criterion_main, Benchmark, Criterion};
+use criterion::{ criterion_group, criterion_main, Criterion };
 use kvs::engines::{KvStore, KvsEngine, SledKvsEngine};
 use kvs::error::Result;
 use kvs::utils::SLED_FILE_NAME;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::path::PathBuf;
-use std::time::Duration;
 
 fn create_random_values(n: u64) -> Vec<(String, String)> {
     let byte_length_range = 1..100_000;
