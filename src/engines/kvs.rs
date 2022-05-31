@@ -1,16 +1,16 @@
+use super::KvsEngine;
+use crate::error::{KvsError, Result};
+use crate::utils::KVS_FILE_NAME;
+use serde::{Deserialize, Serialize};
 ///Primary struct is a KvStore containing a single HashMap
 use std::collections::HashMap;
-use std::path::PathBuf;
-use crate::utils::{ KVS_FILE_NAME };
+use std::fs::{self, File};
 use std::io::BufWriter;
-use std::fs::{ self, File };
-use crate::error::{ KvsError, Result };
-use serde::{ Deserialize, Serialize };
-use super::KvsEngine;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct KvStore {
-    pub kv: HashMap<String, usize>, //Change to store log pointer
+    pub kv: HashMap<String, usize>,
     pub directory_path: PathBuf,
     pub log_pointer: usize,
 }
@@ -90,7 +90,6 @@ impl KvStore {
 }
 
 impl KvsEngine for KvStore {
-
     ///Set the value of a string key to a string. Return an error if the value is not written successfully.
     fn set(&mut self, key: String, value: String) -> Result<()> {
         self.kv.insert(key.clone(), self.log_pointer);

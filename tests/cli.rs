@@ -195,18 +195,18 @@ fn cli_wrong_engine() {
         .assert()
         .success()
         .stdout(is_empty());
-    
+
     Command::cargo_bin("kvs-server")
         .unwrap()
         .args(&["--engine", "kvs", "--addr", "127.0.0.1:4003"])
         .current_dir(&temp_dir);
-    
+
     Command::cargo_bin("kvs-client")
-    .unwrap()
-    .args(&["set", "key1", "value1", "--addr", "127.0.0.1:4003"])
-    .current_dir(&temp_dir)
-    .assert()
-    .failure();
+        .unwrap()
+        .args(&["set", "key1", "value1", "--addr", "127.0.0.1:4003"])
+        .current_dir(&temp_dir)
+        .assert()
+        .failure();
 
     sender.send(()).unwrap();
     handle.join().unwrap();
@@ -250,18 +250,18 @@ fn cli_wrong_engine() {
         .assert()
         .success()
         .stdout(is_empty());
-    
+
     Command::cargo_bin("kvs-server")
         .unwrap()
         .args(&["--engine", "sled", "--addr", "127.0.0.1:4003"])
         .current_dir(&temp_dir);
-    
+
     Command::cargo_bin("kvs-client")
-    .unwrap()
-    .args(&["set", "key1", "value1", "--addr", "127.0.0.1:4003"])
-    .current_dir(&temp_dir)
-    .assert()
-    .failure();
+        .unwrap()
+        .args(&["set", "key1", "value1", "--addr", "127.0.0.1:4003"])
+        .current_dir(&temp_dir)
+        .assert()
+        .failure();
 
     sender.send(()).unwrap();
     handle.join().unwrap();
