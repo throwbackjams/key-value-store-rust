@@ -107,6 +107,9 @@ fn compaction() -> Result<()> {
             store.set(key, value)?;
         }
 
+        // reopen and check content.
+        let store = KvStore::open(temp_dir.path())?;
+
         let new_size = dir_size();
         if new_size > current_size {
             current_size = new_size;

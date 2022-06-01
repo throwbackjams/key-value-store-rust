@@ -76,15 +76,13 @@ impl KvsServer{
             let path_clone = path.clone();
 
             shared_thread_pool.spawn(move || {
-                KvsServer::verify_database_type(engine_clone)?;
+                KvsServer::verify_database_type(engine_clone).expect("Verify database error");
                 
-                let kv_store = KvStore::open(&path_clone)?;
+                let kv_store = KvStore::open(&path_clone).expect("Error opening KvStore"); //TODO! How to implement error propogation within a thread?
                 
-                let unwrapped_stream = stream?;
+                let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
     
-                KvsServer::handle_request(unwrapped_stream, kv_store)?;
-
-                Ok(())
+                KvsServer::handle_request(unwrapped_stream, kv_store).expect("KvStore handle request error");
             })
 
 

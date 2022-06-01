@@ -14,21 +14,14 @@ fn spawn_counter<P: ThreadPool>(pool: P) -> Result<()> {
     let wg = WaitGroup::new();
     let counter = Arc::new(AtomicUsize::new(0));
 
-    eprintln!("Inside spawn_counter");
-
     for _ in 0..TASK_NUM {
         let counter = Arc::clone(&counter);
         let wg = wg.clone();
-        eprintln!("Calling pool.spawn");
         pool.spawn(move || {
-            eprintln!("Inside pool.spawn");
             for _ in 0..ADD_COUNT {
                 counter.fetch_add(1, Ordering::SeqCst);
             }
             drop(wg);
-            eprintln!("complete pool.spawn");
-
-            Ok(())
         })
     }
 
@@ -39,8 +32,6 @@ fn spawn_counter<P: ThreadPool>(pool: P) -> Result<()> {
 
 fn spawn_panic_task<P: ThreadPool>() -> Result<()> {
     const TASK_NUM: usize = 1000;
-
-    eprintln!("starting panic threads");
 
     let pool = P::new(4)?;
     for _ in 0..TASK_NUM {
@@ -53,8 +44,6 @@ fn spawn_panic_task<P: ThreadPool>() -> Result<()> {
             panic!()
         })
     }
-
-    eprintln!("Done with panics");
 
     spawn_counter(pool)
 }

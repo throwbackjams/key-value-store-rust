@@ -173,43 +173,98 @@ fn cli_log_configuration() {
 
 #[test]
 fn cli_wrong_engine() {
-    // sled first, kvs second
-    {
-        let temp_dir = TempDir::new().unwrap();
-        let mut cmd = Command::cargo_bin("kvs-server").unwrap();
-        let mut child = cmd
-            .args(&["--engine", "sled", "--addr", "127.0.0.1:4002"])
-            .current_dir(&temp_dir)
-            .spawn()
-            .unwrap();
-        thread::sleep(Duration::from_secs(1));
-        child.kill().expect("server exited before killed");
+// sled first, kvs second
+let (sender, receiver) = mpsc::sync_channel(0);
+let temp_dir = TempDir::new().unwrap();
+let mut server = Command::cargo_bin("kvs-server").unwrap();
+let mut child = server
+    .args(&["--engine", "sled", "--addr", "127.0.0.1:4002"])
+    .current_dir(&temp_dir)
+    .spawn()
+    .unwrap();
+let handle = thread::spawn(move || {
+    let _ = receiver.recv(); // wait for main thread to finish
+    child.kill().expect("server exited before killed");
+});
+thread::sleep(Duration::from_secs(1));
 
-        let mut cmd = Command::cargo_bin("kvs-server").unwrap();
-        cmd.args(&["--engine", "kvs", "--addr", "127.0.0.1:4003"])
-            .current_dir(&temp_dir)
-            .assert()
-            .failure();
-    }
+Command::cargo_bin("kvs-client")
+    .unwrap()
+    .args(&["set", "key1", "value1", "--addr", "127.0.0.1:4002"])
+    .current_dir(&temp_dir)
+    .assert()
+    .success()
+    .stdout(is_empty());
 
-    // kvs first, sled second
-    {
-        let temp_dir = TempDir::new().unwrap();
-        let mut cmd = Command::cargo_bin("kvs-server").unwrap();
-        let mut child = cmd
-            .args(&["--engine", "kvs", "--addr", "127.0.0.1:4002"])
-            .current_dir(&temp_dir)
-            .spawn()
-            .unwrap();
-        thread::sleep(Duration::from_secs(1));
-        child.kill().expect("server exited before killed");
+Command::cargo_bin("kvs-server")
+    .unwrap()
+    .args(&["--engine", "kvs", "--addr", "127.0.0.1:4003"])
+    .current_dir(&temp_dir);
 
-        let mut cmd = Command::cargo_bin("kvs-server").unwrap();
-        cmd.args(&["--engine", "sled", "--addr", "127.0.0.1:4003"])
-            .current_dir(&temp_dir)
-            .assert()
-            .failure();
-    }
+Command::cargo_bin("kvs-client")
+    .unwrap()
+    .args(&["set", "key1", "value1", "--addr", "127.0.0.1:4003"])
+    .current_dir(&temp_dir)
+    .assert()
+    .failure();
+
+sender.send(()).unwrap();
+handle.join().unwrap();
+// {
+//     let temp_dir = TempDir::new().unwrap();
+//     let mut cmd = Command::cargo_bin("kvs-server").unwrap();
+//     let mut child = cmd
+//         .args(&["--engine", "sled", "--addr", "127.0.0.1:4002"])
+//         .current_dir(&temp_dir)
+//         .spawn()
+//         .unwrap();
+//     thread::sleep(Duration::from_secs(1));
+//     child.kill().expect("server exited before killed");
+
+//     let mut cmd = Command::cargo_bin("kvs-server").unwrap();
+//     cmd.args(&["--engine", "kvs", "--addr", "127.0.0.1:4003"])
+//         .current_dir(&temp_dir)
+//         .assert()
+//         .failure();
+// }
+
+// kvs first, sled second
+let (sender, receiver) = mpsc::sync_channel(0);
+let temp_dir = TempDir::new().unwrap();
+let mut server = Command::cargo_bin("kvs-server").unwrap();
+let mut child = server
+    .args(&["--engine", "kvs", "--addr", "127.0.0.1:4002"])
+    .current_dir(&temp_dir)
+    .spawn()
+    .unwrap();
+let handle = thread::spawn(move || {
+    let _ = receiver.recv(); // wait for main thread to finish
+    child.kill().expect("server exited before killed");
+});
+thread::sleep(Duration::from_secs(1));
+
+Command::cargo_bin("kvs-client")
+    .unwrap()
+    .args(&["set", "key1", "value1", "--addr", "127.0.0.1:4002"])
+    .current_dir(&temp_dir)
+    .assert()
+    .success()
+    .stdout(is_empty());
+
+Command::cargo_bin("kvs-server")
+    .unwrap()
+    .args(&["--engine", "sled", "--addr", "127.0.0.1:4003"])
+    .current_dir(&temp_dir);
+
+Command::cargo_bin("kvs-client")
+    .unwrap()
+    .args(&["set", "key1", "value1", "--addr", "127.0.0.1:4003"])
+    .current_dir(&temp_dir)
+    .assert()
+    .failure();
+
+sender.send(()).unwrap();
+handle.join().unwrap();
 }
 
 fn cli_access_server(engine: &str, addr: &str) {
