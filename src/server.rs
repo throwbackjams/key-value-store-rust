@@ -52,21 +52,41 @@ impl KvsServer{
 
         let listener = TcpListener::bind(ip_string)?;
 
+        let shared_thread_pool = SharedQueueThreadPool::new(10)?;
+
         for stream in listener.incoming() {
 
-            let naive_thread_pool = NaiveThreadPool::new(10)?;
+            //NAIVE THREADPOOL
+            // let naive_thread_pool = NaiveThreadPool::new(10)?;
+            // let engine_clone = engine.clone();
+            // let path_clone = path.clone();
+
+            // naive_thread_pool.spawn(move || {
+            //     KvsServer::verify_database_type(engine_clone).expect("Verify database error");
+                
+            //     let kv_store = KvStore::open(&path_clone).expect("Error opening KvStore"); //TODO! How to implement error propogation within a thread?
+                
+            //     let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
+    
+            //     KvsServer::handle_request(unwrapped_stream, kv_store).expect("KvStore handle request error");
+            // });
+
+            //SHARED THREADPOOL
             let engine_clone = engine.clone();
             let path_clone = path.clone();
 
-            naive_thread_pool.spawn(move || {
-                KvsServer::verify_database_type(engine_clone).expect("Verify database error");
+            shared_thread_pool.spawn(move || {
+                KvsServer::verify_database_type(engine_clone)?;
                 
-                let kv_store = KvStore::open(&path_clone).expect("Error opening KvStore"); //TODO! How to implement error propogation within a thread?
+                let kv_store = KvStore::open(&path_clone)?;
                 
-                let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
+                let unwrapped_stream = stream?;
     
-                KvsServer::handle_request(unwrapped_stream, kv_store).expect("KvStore handle request error");
-            });
+                KvsServer::handle_request(unwrapped_stream, kv_store)?;
+
+                Ok(())
+            })
+
 
         }
 
