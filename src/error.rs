@@ -15,6 +15,7 @@ pub enum KvsError{
     IpAddrParse(AddrParseError),
     CommandError(String),
     SledError(sled::Error),
+    ThreadPoolError(String),
     // SyncError(PoisonError<T>),
 }
 
@@ -27,6 +28,7 @@ impl fmt::Display for KvsError{
             KvsError::IpAddrParse(err) => write!(f, "IP error {}", err),
             KvsError::CommandError(err) => write!(f, "Command error: {}", err),
             KvsError::SledError(err) => write!(f, "Sled error: {}", err),
+            KvsError::ThreadPoolError(err) => write!(f, "Thread pool error:{}", err),
             // KvsError::SyncError(err) => write!(f, "Sync Error: {}", err),
         }
     }

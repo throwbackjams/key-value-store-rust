@@ -36,8 +36,10 @@ fn main() -> Result<()> {
     eprintln!("Beginning Server listening on IP Address:Port: {}", cli.addr);
     eprintln!("Running kvs-server CARGO_PKG_VERSION: {}", env!("CARGO_PKG_VERSION"));
     eprintln!("Engine used: {:?}", cli.engine);
+
+    let pool = "Shared".to_string();
     
-    KvsServer::route_request(cli.addr, cli.engine)?;
+    KvsServer::route_request(cli.addr, cli.engine, pool)?;
     
     Ok(())
 

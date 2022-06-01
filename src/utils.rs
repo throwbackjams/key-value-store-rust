@@ -7,3 +7,5 @@ pub const SLED_CODE: &[u8] = b"sled";
 pub const KVS_FILE_NAME: &str = "log.txt";
 pub const SLED_FILE_NAME: &str = "sled_db";
 pub const BUFFER_LENGTH: usize = 200050;
+pub const SHARED_THREAD_POOL: &str = "Shared";
+pub const RAYON_THREAD_POOL: &str = "Rayon";

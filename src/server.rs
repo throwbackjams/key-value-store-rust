@@ -1,4 +1,4 @@
-use crate::utils::{ SLED_FILE_NAME, KVS_FILE_NAME, SLED_CODE, KVS_CODE, OK_RESPONSE, GET, SET, RM, BUFFER_LENGTH };
+use crate::utils::{ SLED_FILE_NAME, KVS_FILE_NAME, SLED_CODE, KVS_CODE, OK_RESPONSE, GET, SET, RM, BUFFER_LENGTH, RAYON_THREAD_POOL, SHARED_THREAD_POOL };
 use crate::error::{ KvsError, Result };
 use crate::engines::{ SledKvsEngine, KvStore, KvsEngine };
 use crate::thread_pool::*;
@@ -6,6 +6,7 @@ use std::net::{ TcpListener, TcpStream };
 use std::path::PathBuf;
 use std::fs;
 use std::io::{ Read, Write };
+use num_cpus;
 
 use tracing::info;
 use tracing_subscriber;
@@ -13,19 +14,45 @@ pub struct KvsServer{}
 
 impl KvsServer{
     
-    pub fn route_request(ip_string: String, engine: String) -> Result<()> {
+    pub fn route_request(ip_string: String, engine: String, pool: String) -> Result<()> {
 
         match engine.as_bytes() {
-            KVS_CODE => KvsServer::listen_and_serve_requests_kvs(ip_string, engine),
-            SLED_CODE => KvsServer::listen_and_serve_requests_sled(ip_string, engine),
+            KVS_CODE => KvsServer::listen_and_serve_requests_kvs(ip_string, engine, pool),
+            SLED_CODE => KvsServer::listen_and_serve_requests_sled(ip_string, engine, pool),
             _ => return Err(KvsError::CommandError("Engine not found".to_string()))
         }
 
     }
 
-    fn listen_and_serve_requests_sled(ip_string: String, engine: String) -> Result<()> {
+    fn listen_and_serve_requests_sled(ip_string: String, engine: String, pool: String) -> Result<()> {
 
         let listener = TcpListener::bind(ip_string)?;
+
+        match pool.as_str() {
+            SHARED_THREAD_POOL => {
+                let shared_thread_pool = SharedQueueThreadPool::new(num_cpus::get() as u32 )?;
+                
+
+                for stream in listener.incoming() {
+                    let engine_clone = engine.clone();
+                    shared_thread_pool.spawn(move || {
+                        KvsServer::verify_database_type(engine_clone).expect("Verify database error");
+            
+                        let sled_db = SledKvsEngine::open(SLED_FILE_NAME).expect("Error opening SLED"); //TODO! How to implement error propogation within a thread?
+                        
+                        let sled_engine = SledKvsEngine { 
+                            directory_path: PathBuf::from(SLED_FILE_NAME),
+                            sled_db,
+                        };
+                        
+                        let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
+                        KvsServer::handle_request(unwrapped_stream, sled_engine).expect("SLED handle request error");
+                    })
+                }
+            },
+            RAYON_THREAD_POOL => {todo!()},
+            _ => {return Err(KvsError::ThreadPoolError("Threadpool type not found".to_string()))}
+        };
 
         for stream in listener.incoming() {
 
@@ -46,47 +73,37 @@ impl KvsServer{
         Ok(())
     }
 
-    fn listen_and_serve_requests_kvs(ip_string: String, engine: String) -> Result<()>{
+    fn listen_and_serve_requests_kvs(ip_string: String, engine: String, pool: String) -> Result<()>{
 
         let path = PathBuf::from("");
 
         let listener = TcpListener::bind(ip_string)?;
 
-        let shared_thread_pool = SharedQueueThreadPool::new(10)?;
+        match pool.as_str() {
+            SHARED_THREAD_POOL => {
+                let shared_thread_pool = SharedQueueThreadPool::new(num_cpus::get() as u32 )?;
 
-        for stream in listener.incoming() {
-
-            //NAIVE THREADPOOL
-            // let naive_thread_pool = NaiveThreadPool::new(10)?;
-            // let engine_clone = engine.clone();
-            // let path_clone = path.clone();
-
-            // naive_thread_pool.spawn(move || {
-            //     KvsServer::verify_database_type(engine_clone).expect("Verify database error");
                 
-            //     let kv_store = KvStore::open(&path_clone).expect("Error opening KvStore"); //TODO! How to implement error propogation within a thread?
-                
-            //     let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
-    
-            //     KvsServer::handle_request(unwrapped_stream, kv_store).expect("KvStore handle request error");
-            // });
+                for stream in listener.incoming() {
+                    let engine_clone = engine.clone();
+                    let path_clone = path.clone();
 
-            //SHARED THREADPOOL
-            let engine_clone = engine.clone();
-            let path_clone = path.clone();
-
-            shared_thread_pool.spawn(move || {
-                KvsServer::verify_database_type(engine_clone).expect("Verify database error");
-                
-                let kv_store = KvStore::open(&path_clone).expect("Error opening KvStore"); //TODO! How to implement error propogation within a thread?
-                
-                let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
-    
-                KvsServer::handle_request(unwrapped_stream, kv_store).expect("KvStore handle request error");
-            })
+                    shared_thread_pool.spawn(move || {
+                        KvsServer::verify_database_type(engine_clone).expect("Verify database error");
+                        
+                        let kv_store = KvStore::open(&path_clone).expect("Error opening KvStore"); //TODO! How to implement error propogation within a thread?
+                        
+                        let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
+            
+                        KvsServer::handle_request(unwrapped_stream, kv_store).expect("KvStore handle request error");
+                    })
 
 
-        }
+                }
+            },
+            RAYON_THREAD_POOL => {todo!()},
+            _ => {return Err(KvsError::ThreadPoolError("Threadpool type not found".to_string()))}
+        };
 
         Ok(())
     }
