@@ -21,7 +21,7 @@ impl KvsClient {
 
         let byte_vector: Vec<&[u8]> = buffer.split(|byte| &[*byte] == b"\n").collect();
 
-        let content = byte_vector.get(0).ok_or(KvsError::CommandError("Command unrecognized".to_string()))?;
+        let content = byte_vector.get(0).ok_or_else(|| KvsError::CommandError("Command unrecognized".to_string()))?;
 
         let string_response = String::from_utf8(content[..].to_vec())?;
 

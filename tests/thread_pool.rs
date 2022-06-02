@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use kvs::thread_pool::*;
 use kvs::Result;
-use kvs::error::KvsError;
 
 use crossbeam_utils::sync::WaitGroup;
 

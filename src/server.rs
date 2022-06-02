@@ -32,43 +32,15 @@ impl KvsServer{
             SHARED_THREAD_POOL => {
                 let shared_thread_pool = SharedQueueThreadPool::new(num_cpus::get() as u32 )?;
                 
-
-                for stream in listener.incoming() {
-                    let engine_clone = engine.clone();
-                    shared_thread_pool.spawn(move || {
-                        KvsServer::verify_database_type(engine_clone).expect("Verify database error");
-            
-                        let sled_db = SledKvsEngine::open(SLED_FILE_NAME).expect("Error opening SLED"); //TODO! How to implement error propogation within a thread?
-                        
-                        let sled_engine = SledKvsEngine { 
-                            directory_path: PathBuf::from(SLED_FILE_NAME),
-                            sled_db,
-                        };
-                        
-                        let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
-                        KvsServer::handle_request(unwrapped_stream, sled_engine).expect("SLED handle request error");
-                    })
-                }
+                KvsServer::sled_handle_with_thread_pool(listener, engine, shared_thread_pool);
             },
-            RAYON_THREAD_POOL => {todo!()},
+            RAYON_THREAD_POOL => {
+                let rayon_thread_pool = RayonThreadPool::new(num_cpus::get() as u32 )?;
+
+                KvsServer::sled_handle_with_thread_pool(listener, engine, rayon_thread_pool);
+            },
             _ => {return Err(KvsError::ThreadPoolError("Threadpool type not found".to_string()))}
         };
-
-        for stream in listener.incoming() {
-
-            KvsServer::verify_database_type(engine.clone())?;
-            
-            let sled_db = SledKvsEngine::open(SLED_FILE_NAME)?;
-            
-            let sled_engine = SledKvsEngine { 
-                directory_path: PathBuf::from(SLED_FILE_NAME),
-                sled_db: sled_db,
-            };
-            
-            let unwrapped_stream = stream?;
-            KvsServer::handle_request(unwrapped_stream, sled_engine)?
-
-        }
 
         Ok(())
     }
@@ -83,37 +55,60 @@ impl KvsServer{
             SHARED_THREAD_POOL => {
                 let shared_thread_pool = SharedQueueThreadPool::new(num_cpus::get() as u32 )?;
 
-                
-                for stream in listener.incoming() {
-                    let engine_clone = engine.clone();
-                    let path_clone = path.clone();
-
-                    shared_thread_pool.spawn(move || {
-                        KvsServer::verify_database_type(engine_clone).expect("Verify database error");
-                        
-                        let kv_store = KvStore::open(&path_clone).expect("Error opening KvStore"); //TODO! How to implement error propogation within a thread?
-                        
-                        let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
-            
-                        KvsServer::handle_request(unwrapped_stream, kv_store).expect("KvStore handle request error");
-                    })
-
-
-                }
+                KvsServer::kvs_handle_with_thread_pool(listener, engine, path, shared_thread_pool);
             },
-            RAYON_THREAD_POOL => {todo!()},
+            RAYON_THREAD_POOL => {
+                    let rayon_thread_pool = RayonThreadPool::new(num_cpus::get() as u32 )?;
+
+                    KvsServer::kvs_handle_with_thread_pool(listener, engine, path, rayon_thread_pool);
+            },
             _ => {return Err(KvsError::ThreadPoolError("Threadpool type not found".to_string()))}
         };
 
         Ok(())
     }
 
+    fn sled_handle_with_thread_pool<T>(listener: TcpListener, engine: String, thread_pool: T)
+    where T: ThreadPool {
+        for stream in listener.incoming() {
+            let engine_clone = engine.clone();
+            thread_pool.spawn(move || {
+                KvsServer::verify_database_type(engine_clone).expect("Verify database error");
+    
+                let sled_db = SledKvsEngine::open(SLED_FILE_NAME).expect("Error opening SLED"); //TODO! How to implement error propogation within a thread?
+                
+                let sled_engine = SledKvsEngine { 
+                    directory_path: PathBuf::from(SLED_FILE_NAME),
+                    sled_db,
+                };
+                
+                let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
+                KvsServer::handle_request(unwrapped_stream, sled_engine).expect("SLED handle request error");
+            })
+        }
+    }
+
+    fn kvs_handle_with_thread_pool<T>(listener: TcpListener, engine: String, path: PathBuf, thread_pool: T)
+    where T: ThreadPool {
+        for stream in listener.incoming() {
+            let engine_clone = engine.clone();
+            let path_clone = path.clone();
+
+            thread_pool.spawn(move || {
+                KvsServer::verify_database_type(engine_clone).expect("Verify database error");
+                
+                let kv_store = KvStore::open(&path_clone).expect("Error opening KvStore"); //TODO! How to implement error propogation within a thread?
+                
+                let unwrapped_stream = stream.expect("Error unwrapping TcpStream"); //TODO! How to implement error propogation within a thread?
+    
+                KvsServer::handle_request(unwrapped_stream, kv_store).expect("KvStore handle request error");
+            })
+        }
+    }
+
     fn verify_database_type(engine: String) -> Result<()> {
         let sled_exists = fs::metadata(SLED_FILE_NAME);
         let kvs_exists = fs::metadata(KVS_FILE_NAME);
-
-        // info!("sled_exists: {:?}", sled_exists);
-        // info!("kvs_exists: {:?}", kvs_exists);
 
         if sled_exists.is_ok() && engine.as_bytes() == KVS_CODE {
             // info!("Cannot use kvs engine when sled db exists");
@@ -129,8 +124,7 @@ impl KvsServer{
 
     }
 
-    //TODO! Perform operation by calling KvsEngine
-    fn handle_request(mut stream: TcpStream, mut engine: impl KvsEngine ) -> Result<()> {
+    fn handle_request(mut stream: TcpStream, engine: impl KvsEngine ) -> Result<()> {
 
         let _subscriber = tracing_subscriber::FmtSubscriber::new();
 
@@ -140,17 +134,15 @@ impl KvsServer{
 
         stream.read(&mut buffer)?;
 
-        //Split arguments by space
         let arguments:Vec<&[u8]> = buffer.split(|byte| &[*byte] == b"\n").collect();
 
-        //TODO! translate bytes in the buffer to commands
         match arguments.get(0) {
             Some(&GET) => {
                 info!("Processing GET Request");
                 //decode key
                 let key_bytes = arguments
                             .get(1)
-                            .ok_or(KvsError::CommandError("Command unrecognized".to_string()));
+                            .ok_or_else(|| KvsError::CommandError("Command unrecognized".to_string()));
                 
                 if let Err(error) = key_bytes {
                     return Err(error)
@@ -165,7 +157,7 @@ impl KvsServer{
 
                 //NOTE! If the result is not Ok(value), then error should propogate to kvs-server and the below should not execute right?
                 //Send result back (encapsulate in function?)
-                let response = format!("+{}\n", result.unwrap_or("Key not found".to_string()));
+                let response = format!("+{}\n", result.unwrap_or_else(|| "Key not found".to_string()));
 
                 stream.write(response.as_bytes())?;
                 stream.flush()?;
@@ -174,8 +166,8 @@ impl KvsServer{
             Some(&SET) => {
                 info!("Processing SET Request");
                 //decode key and value
-                let key_bytes = arguments.get(1).ok_or(KvsError::CommandError("Command unrecognized".to_string()));
-                let value_bytes = arguments.get(2).ok_or(KvsError::CommandError("Command unrecognized".to_string()));
+                let key_bytes = arguments.get(1).ok_or_else(|| KvsError::CommandError("Command unrecognized".to_string()));
+                let value_bytes = arguments.get(2).ok_or_else(|| KvsError::CommandError("Command unrecognized".to_string()));
                 
                 //Handle set request (send success reponse)
 
@@ -199,13 +191,11 @@ impl KvsServer{
                 stream.write(response)?;
                 stream.flush()?;
 
-
-
             },
             Some(&RM) => {
                 info!("Processing Remove Request");
                 //decode key
-                let key_bytes = arguments.get(1).ok_or(KvsError::CommandError("Command unrecognized".to_string()));
+                let key_bytes = arguments.get(1).ok_or_else(||KvsError::CommandError("Command unrecognized".to_string()));
                 //Handle remove request
 
                 if let Err(error) = key_bytes {
@@ -235,7 +225,4 @@ impl KvsServer{
         Ok(())
 
     }
-
-    //TODO! Return result or propogate error to client
-
 }

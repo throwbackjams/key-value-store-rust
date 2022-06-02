@@ -42,7 +42,7 @@ fn do_job(worker: Worker) {
 pub struct NaiveThreadPool;
 
 impl ThreadPool for NaiveThreadPool {
-    fn new(threads: u32) -> Result<NaiveThreadPool> {
+    fn new(_threads: u32) -> Result<NaiveThreadPool> {
         Ok(NaiveThreadPool)
     }
     
@@ -64,7 +64,7 @@ impl ThreadPool for SharedQueueThreadPool {
 
         let (sender, receiver) = channel::unbounded::<Box<dyn FnOnce() + Send + 'static>>();
 
-        for i in 0..threads {
+        for _ in 0..threads {
             let worker = Worker(receiver.clone());
             thread::spawn(move|| do_job(worker));
         }

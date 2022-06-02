@@ -9,7 +9,8 @@ use std::time::Duration;
 
 fn create_random_values(n: u64) -> Vec<(String, String)> {
     
-    let byte_length_range = 1..100_000;
+    let low_byte_length_range = 1;
+    let high_byte_length_range = 100_000;
 
     let number_pairs = n;
 
@@ -19,8 +20,8 @@ fn create_random_values(n: u64) -> Vec<(String, String)> {
 
         let mut rng = rand::thread_rng();
 
-        let rand_key_length = rng.gen_range(byte_length_range.clone());
-        let rand_value_length = rng.gen_range(byte_length_range.clone());
+        let rand_key_length = rng.gen_range(low_byte_length_range.clone(), high_byte_length_range.clone());
+        let rand_value_length = rng.gen_range(low_byte_length_range.clone(), high_byte_length_range.clone());
 
         let rand_key: String = thread_rng()
         .sample_iter(&Alphanumeric)

@@ -7,7 +7,7 @@ use std::fs::{ self, File };
 use crate::error::{ KvsError, Result };
 use serde::{ Deserialize, Serialize };
 use super::KvsEngine;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
 pub struct KvStore {

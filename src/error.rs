@@ -1,7 +1,6 @@
 use std::fmt;
 use std::net::{ self, AddrParseError };
 use std::io;
-use std::sync::PoisonError;
 
 ///Result wrapper to consolidate program errors
 pub type Result<T> = std::result::Result<T, KvsError>;

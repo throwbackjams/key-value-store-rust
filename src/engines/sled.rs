@@ -30,7 +30,7 @@ impl KvsEngine for SledKvsEngine {
         };
 
         //TODO! Is there a better way to convert Ivecs into Strings?
-        let vec_bytes: Vec<u8> = ivec_value.unwrap().into_iter().map(|byte| *byte ).collect();
+        let vec_bytes: Vec<u8> = ivec_value.unwrap().iter().copied().collect();
 
         let string = String::from_utf8_lossy(&vec_bytes);
 

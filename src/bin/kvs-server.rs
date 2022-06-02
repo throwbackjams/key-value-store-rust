@@ -3,7 +3,7 @@ use kvs::server::KvsServer;
 use kvs::error::Result;
 use tracing::{ info, trace };
 use tracing_subscriber;
-use kvs::utils::KVS_CODE;
+use kvs::utils::{KVS_CODE, RAYON_THREAD_POOL, SHARED_THREAD_POOL};
 
 const DEFAULT_IP_ADDRESS: &str = "127.0.0.1:4000";
 
@@ -37,7 +37,7 @@ fn main() -> Result<()> {
     eprintln!("Running kvs-server CARGO_PKG_VERSION: {}", env!("CARGO_PKG_VERSION"));
     eprintln!("Engine used: {:?}", cli.engine);
 
-    let pool = "Shared".to_string();
+    let pool = SHARED_THREAD_POOL.to_string();
     
     KvsServer::route_request(cli.addr, cli.engine, pool)?;
     
